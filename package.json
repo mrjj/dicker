@@ -1,0 +1,51 @@
+{
+  "name": "dicker",
+  "description": "Dicker - Trivial docker build system",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ilya Kutukov",
+    "email": "post.ilya@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mrjj/dicker.git"
+  },
+  "entry": {
+    "index": "./src/index.js"
+  },
+  "bin": {
+    "docker": "bin/dicker"
+  },
+  "main": "./src/",
+  "pkg": {
+    "scripts": "build/**/*.js",
+    "assets": [
+      "bin/dicker",
+      "src/index.js",
+      "src/utils/*.js"
+    ],
+    "targets": [
+      "node10"
+    ]
+  },
+  "dependencies": {
+    "shelljs": "0.8.3",
+    "toposort": "2.0.2"
+  },
+  "devDependencies": {
+    "eslint": "5.12.1",
+    "eslint-config-airbnb-base": "13.1.0",
+    "eslint-plugin-import": "2.14.0",
+    "pkg": "4.3.7"
+  },
+  "scripts": {
+    "start": "node bin/dicker",
+    "build": "pkg bin/dicker --options max_old_space_size=4096 --out-path build",
+    "test": "node bin/dicker ./example/build.json",
+    "lint": "eslint ./src"
+  },
+  "files": [
+    "src/**/*",
+    "bin/dicker"
+  ]
+}

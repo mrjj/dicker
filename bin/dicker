@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+
+/**
+ * @fileOverview: main Dicker file
+ */
+
+require('../src/index.js')();

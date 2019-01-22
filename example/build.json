@@ -7,10 +7,10 @@
     "skip": false,
 
     "description": "This message shows that your installation appears to be working correctly.",
-    "license": "UNLICENSED",
+    "license": "Unlicense",
 
     "args": {
-      "BUILD_FROM": "scratch"
+      "BUILD_FROM": "node:10.13.0-alpine"
     }
   }
 ]

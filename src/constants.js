@@ -21,11 +21,10 @@ const TASK_STATUS = {
  */
 const ROOT_TASK = {
   task: '$_ROOT_TASK_$',
-  name: 'root_task',
-  description: 'Root task',
+  description: 'Root task (will not be executed)',
   skip: true,
   status: TASK_STATUS.SKIPPED,
-  docker: null,
+  dockerfile: null,
 };
 
 /**
@@ -59,18 +58,18 @@ const DEFAULT_IMAGE_NAME = 'latest';
  */
 const FACES = {
   HAPPY: '(^‿^)',
-  DEAD: '[X.X]',
-  DEAD_FOR_28_DAYS: '[X~x]',
-  NDE: '[x.x]',
+  DEAD: '{X.X}',
+  DEAD_FOR_28_DAYS: '{X~x}',
+  NDE: '{x.x}',
   SURPRISED: '[O.O]',
   CALMED_DOWN: '[o.o]',
   DONT_GIVE: [' -.- ', ' -.~ ', ' ~.~ ', ' ~.- '],
   DASH: '  -  ',
-  DIZZY: ' ~_~ ',
-  NOT_ME: ' ._. ',
+  DIZZY: '[~_~]',
+  NOT_ME: ' -.- ',
   HIDING: ' _._ ',
-  INSPECTOR: ['[-.<]', '[>.<]', '[>.-]'],
-  YES_BUT: '[ ! ]',
+  INSPECTOR: ['[-.<]', '[-.o]', '[o.O]', '[o.°]', '[~.o]', '[-‿<]'],
+  YES_BUT: '( ! )',
 };
 
 const TASK_STATUS_TO_FACE = {
@@ -86,7 +85,7 @@ const TASK_STATUS_MAX_LEN = Object.keys(TASK_STATUS)
   .map(ts => ts.length)
   .sort((a, b) => (b - a))[0];
 
-const SEP = `${' '.repeat(17)}${FACES.DONT_GIVE.join('-'.repeat(8))}`;
+const SEP = `${'-'.repeat(16)}`;
 
 module.exports = {
   DEFAULT_IMAGE_NAME,

@@ -8,6 +8,8 @@ const { face } = require('./utils/faces');
 const { info, error, format } = require('./utils/logger');
 const C = require('./constants');
 
+const ENTRY_POINT = shell.pwd().toString();
+
 const onError = (e) => {
   error(e);
   shell.exit(1);
@@ -70,25 +72,41 @@ const sortTasks = (tasks) => {
 };
 
 const makeTaskCommand = (
-  { image, tag, args, dockerfile, context, skip },
+  taskObj,
   manifest,
   extraArgsStr,
 ) => {
-  const manifestPath = path.resolve(manifest);
-  const dockerfilePath = path.join(path.dirname(manifestPath), dockerfile || 'Dockerfile');
+  const { task, image, tag, args, dockerfile, context, skip } = taskObj;
+  const manifestPath = path.isAbsolute(manifest)
+    ? manifest
+    : path.resolve(path.relative(ENTRY_POINT, manifest));
+
+  const manifestDir = path.dirname(manifestPath);
+  const dockerfilePath = (dockerfile && path.isAbsolute(dockerfile)) ? dockerfile : [
+    '.',
+    path.relative(
+      ENTRY_POINT,
+      path.join(manifestDir, dockerfile || 'Dockerfile'),
+    ),
+  ].join(path.sep);
+  const dockerfileDir = path.dirname(dockerfilePath);
+
+  const contextPath = (context && path.isAbsolute(context)) ? context : [
+    '.',
+    path.relative(
+      ENTRY_POINT,
+      context ? path.join(dockerfileDir, context) : dockerfileDir,
+    ),
+    '',
+  ].join(path.sep);
 
   const dockerfileCmd = `-f ${dockerfilePath} `;
-
-  const contextPath = context ? `${path.resolve(context)}${path.sep}` : dockerfilePath.split(path.sep)
-    .slice(0, -1)
-    .join(path.sep);
-
   const buildArgs = args
     ? Object.keys(args).sort().map(k => `--build-arg "${k}=${args[k].replace('"', '\\\\"')}"`)
     : '';
 
   const imageNameWithTag = `-t ${image || C.DEFAULT_IMAGE_NAME}${tag ? `:${tag}` : ''} `;
-  return skip ? 'echo "Skipped"' : [
+  const command = skip ? `echo 'Task "${task}" is skipped'` : [
     'docker build',
     ...buildArgs,
     dockerfileCmd,
@@ -96,6 +114,14 @@ const makeTaskCommand = (
     extraArgsStr,
     contextPath,
   ].filter(x => !!x).join(' ');
+  info(`TASK: ${task}`);
+  info('pwd:'.padStart(16), ENTRY_POINT);
+  info('manifest:'.padStart(16), (manifest || 'not defined'), '->', manifestPath);
+  info('dockerfile:'.padStart(16), (dockerfile || 'not defined'), '->', dockerfilePath);
+  info('context:'.padStart(16), (context || 'not defined'), '->', contextPath);
+  info('command:'.padStart(16), command);
+  info('');
+  return command;
 };
 
 const faceLogTask = (t, tasksTotal, customFace, customMessage) => {
@@ -108,7 +134,7 @@ const faceLogTask = (t, tasksTotal, customFace, customMessage) => {
       (tasksTotal || 0).toString().padEnd(padSize),
     ].join(''),
     t.status.padStart(C.TASK_STATUS_MAX_LEN),
-    `"${t.task} "`.padEnd(20),
+    `${t.task}`.padEnd(20),
     customMessage || t.message || '',
   ].join(' ');
 };

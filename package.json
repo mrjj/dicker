@@ -1,9 +1,10 @@
 {
   "name": "dicker",
   "description": "Dicker - Trivial docker build system",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Ilya Kutukov",
+    "url": "https://github.com/mrjj/",
     "email": "post.ilya@gmail.com"
   },
   "repository": {
@@ -14,15 +15,15 @@
     "index": "./src/index.js"
   },
   "bin": {
-    "docker": "bin/dicker"
+    "dicker": "bin/dicker"
   },
   "main": "./src/",
+  "man": "README.md",
   "pkg": {
     "scripts": "build/**/*.js",
     "assets": [
-      "bin/dicker",
-      "src/index.js",
-      "src/utils/*.js"
+      "src/**/*",
+      "bin/dicker"
     ],
     "targets": [
       "node10"

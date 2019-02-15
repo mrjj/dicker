@@ -1,0 +1,202 @@
+const { PATH_SEPARATOR, OFFICIAL_REPO_NAME, DEFAULT_DOMAIN, LEGACY_DEFAULT_DOMAIN } = require('../../constants');
+type digestReference = digest.Digest
+
+type Reference = Object;
+
+// normalizedNamed represents a name which has been
+// normalized and has a familiar form. A familiar name
+// is what is used in Docker UI. An example normalized
+// name is "docker.io/library/ubuntu" and corresponding
+// familiar name of "ubuntu".
+type Named = {
+  namedRepository: Object,
+  tag: ?string,
+  digest: ?string,
+}
+// normalizedNamed represents a name which has been
+// normalized and has a familiar form. A familiar name
+// is what is used in Docker UI. An example normalized
+// name is "docker.io/library/ubuntu" and corresponding
+// familiar name of "ubuntu".
+interface normalizedNamed {
+  Named: Named,
+
+  Familiar(): Named
+}
+
+const Familiar = (r) => ({
+  namedRepository: familiarizeName(r.namedRepository),
+  tag: r.tag,
+  digest: r.digest,
+});
+// ParseNormalizedNamed parses a string into a named reference
+// transforming a familiar name from Docker UI to a fully
+// qualified reference. If the value may be an identifier
+// use ParseAnyReference.
+const ParseNormalizedNamed = (s: string): [?Named, ?Error] => {
+  const ok = s.match(anchoredIdentifierRegexp);
+  if (ok) {
+    return [
+      null,
+      new Error(`invalid repository name ${s}, cannot specify 64-byte hexadecimal strings`)
+    ];
+  }
+  const [domain, remainder] = splitDockerDomain(s);
+  const remoteName = remainder.split(':')[0];
+  if (remoteName.toLowerCase() !== remoteName) {
+    return [null, new Error('invalid reference format: repository name must be lowercase')];
+  }
+
+  const [ref, err] = Parse(domain + '/' + remainder);
+  if (!isNil(err)) {
+    return [null, err];
+  }
+  const [named, isNamed] = [ref, typeof ref === Named];
+  if (!isNamed) {
+    return [null, new Error(`reference ${ref} has no name`)];
+  }
+  return [named, null];
+};
+
+// splitDockerDomain splits a repository name to domain and remotename string.
+// If no valid domain is found, the default domain is used. Repository name
+// needs to be already validated before.
+const splitDockerDomain = (name: string): [?string, ?string] => {
+  const nameParts = name.split('/');
+  let domain;
+  let remainder;
+  if ((nameParts.length === 1) || ((nameParts[0].indexOf('.:') === -1) && (nameParts[0] !== 'localhost'))) {
+    [domain, remainder] = [DEFAULT_DOMAIN, name];
+  } else {
+    [domain, remainder] = nameParts;
+  }
+  if (domain === LEGACY_DEFAULT_DOMAIN) {
+    domain = DEFAULT_DOMAIN;
+  }
+  if ((domain === DEFAULT_DOMAIN) && (remainder.indexOf('/') === -1)) {
+    remainder = OFFICIAL_REPO_NAME + '/' + remainder;
+  }
+  return [domain, remainder];
+};
+
+// familiarizeName returns a shortened version of the name familiar
+// to to the Docker UI. Familiar names have the default domain
+// "docker.io" and "library/" repository prefix removed.
+// For example, "docker.io/library/redis" will have the familiar
+// name "redis" and "docker.io/dmcgowan/myapp" will be "dmcgowan/myapp".
+// Returns a familiarized named only reference.
+type repository = {
+  domain: string,
+  path:   string,
+}
+
+type reference = {
+  namedRepository: repository,
+  tag:             string,
+  digest:          Digest,
+}
+/**
+ *
+ * @param named {{Domain: string, Path: string}}
+ * @return {*}
+ */
+const familiarizeName = (named: namedRepository): repository => {
+  let repo = {
+    domain: named.Domain(),
+    path: named.Path(),
+  };
+
+  if (repo.domain === DEFAULT_DOMAIN) {
+    repo.domain = '';
+    // Handle official repositories which have the pattern "library/<official repo name>"
+    const split = repo.path.split(PATH_SEPARATOR);
+    if ((split.length === 2) && (split[0] === OFFICIAL_REPO_NAME)) {
+      repo.path = split[1];
+    }
+  }
+  return repo;
+};
+
+/*
+const Familiar = (r:reference): Named => reference({
+		namedRepository: familiarizeName(r.namedRepository),
+		tag:             r.tag,
+		digest:          r.digest,
+})
+
+const Familiar = (r:repository): Named => familiarizeName(r);
+
+const Familiar = (r:taggedReference): Named => taggedReference({
+		namedRepository: familiarizeName(t.namedRepository),
+		tag:             t.tag,
+})
+
+
+const Familiar = (r:canonicalReference): Named => canonicalReference({
+		namedRepository: familiarizeName(c.namedRepository),
+		digest:          c.digest,
+})
+ */
+
+// TagNameOnly adds the default tag "latest" to a reference if it only has
+// a repo name.
+const TagNameOnly = (ref: Named): Named => {
+  if (IsNameOnly(ref)) {
+    const [namedTagged, err] = WithTag(ref, DEFAULT_TAG);
+    if (!isNil(err)) {
+      // Default tag must be valid, to create a NamedTagged
+      // type with non-validated input the WithTag function
+      // should be used instead
+      throw err;
+    }
+    return namedTagged;
+  }
+  ;
+  return ref;
+};
+
+/**
+ * ParseAnyReference parses a reference string as a possible identifier,
+ * full digest, or familiar name.
+ *
+ * @param ref {string}
+ * @return {[Object, error]}
+ * @constructor
+ */
+const ParseAnyReference = (ref: string): [Reference, Error] => {
+  const ok = ref.match(anchoredIdentifierRegexp);
+  if (ok) {
+    return [digestReference('sha256:' + ref), null];
+  }
+  const [dgst, err] = digest.Parse(ref);
+  if (err == null) {
+    return [digestReference(dgst), null];
+  }
+  return ParseNormalizedNamed(ref);
+};
+
+// ParseAnyReferenceWithSet parses a reference string as a possible short
+// identifier to be matched in a digest set, a full digest, or familiar name.
+/**
+ *
+ * @param ref {string}
+ * @param ds {Array<string>}
+ * @return {*}
+ * @constructor
+ */
+const ParseAnyReferenceWithSet = (ref: string, ds: Set): [Reference, Error] => {
+  const ok = ref.match(anchoredShortIdentifierRegexp);
+  if (ok) {
+    const [dgst, err] = ds.Lookup(ref);
+    if (isNil(err)) {
+      return [digestReference(dgst), null];
+    }
+  } else {
+    const [dgst, err] = digest.Parse(ref);
+    if (isNil(err)) {
+      return [digestReference(dgst), null];
+    }
+  }
+
+  return ParseNormalizedNamed(ref);
+};

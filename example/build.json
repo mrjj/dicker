@@ -1,14 +1,45 @@
 [
   {
-    "task": "node-test",
-    "image": "dicker/node-test",
+    "targetRef": "basic-hello-world:0.0.1",
+    "dockerfile": "./trivial"
+  },
+  {
+    "task": "vanilla-hello-world",
+    "fromRef": "https://hub.docker.com/",
+    "targetRef": "hello-world",
+    "dockerfile": "./trivial"
+  },
+  {
+    "dockerfile": "./trivial",
+    "task": "misctag-hello-world:basic"
+  },
+  {
+    "skip": true,
+    "task": "skipme"
+  },
+  {
+    "dockerfile": "./trivial",
+    "fromRef": "misctag-hello-world:ineedbasic",
+    "dependsOn": ["vanilla-hello-world", "basic-hello-world"]
+  },
+  {
+    "dockerfile": "./trivial",
+    "fromRef": "misctag-hello-world",
+    "dependsOn": "vanilla-hello-world"
+  },
+  {
+    "dockerfile": "./trivial",
+    "task": "misctag-hello-world:latest",
+    "dependsOn": "vanilla-hello-world"
+  },
+  {
+    "dependsOn": ["basic-hello-world", "misctag-hello-world", "vanilla-hello-world"],
+    "fromRef": "dicker/node-test:0.1.5",
+    "targetRef": "advanced-node-test",
     "dockerfile": "node-test/Dockerfile",
-    "tag": "latest",
-    "skip": false,
-
+    "context": "./myartifacts/",
     "description": "This message shows that your installation appears to be working correctly.",
-    "license": "Unlicense",
-
+    "license": "MIT",
     "args": {
       "BUILD_FROM": "node:10.13.0-alpine"
     }

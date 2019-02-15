@@ -1,0 +1,188 @@
+/* @flow */
+
+// Copyright 2017 Docker, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Algorithm identifies and implementation of a digester by an identifier.
+// Note the that this defines both the hash algorithm used and the string
+// encoding.
+const crypto = require('crypto');
+const isNil = require('../utils/types').isNil;
+
+export type Algorithm = string;
+// supported digest types
+
+const SHA256: Algorithm = 'sha256'; // sha256 with hex encoding (lower case only)
+const SHA384: Algorithm = 'sha384'; // sha384 with hex encoding (lower case only)
+const SHA512: Algorithm = 'sha512'; // sha512 with hex encoding (lower case only)
+
+// Canonical is the primary digest algorithm used with the distribution
+// project. Other digests may be used but this one is the primary storage
+// digest.
+const Canonical = SHA256;
+
+
+// TODO(stevvooe): Follow the pattern of the standard crypto package for
+// registration of digests. Effectively, we are a registerable set and
+// common symbol access.
+
+// algorithms maps values to hash.Hash implementations. Other algorithms
+// may be available but they cannot be calculated by the digest package.
+const algorithms = {
+  [SHA256]: crypto.SHA256,
+  [SHA384]: crypto.SHA384,
+  [SHA512]: crypto.SHA512,
+};
+
+// anchoredEncodedRegexps contains anchored regular expressions for hex-encoded digests.
+// Note that /A-F/ disallowed.
+const anchoredEncodedRegexps = {
+  [SHA256]: /^[a-f0-9]{64}$/,
+  [SHA384]: /^[a-f0-9]{96}$/,
+  [SHA512]: /^[a-f0-9]{128}$/,
+};
+
+class Algorithm {
+// Available returns true if the digest type is available for use. If this
+// returns false, Digester and Hash will return null.
+  Available(): bool {
+    const [h, ok] = algorithms[a];
+    if (!ok) {
+      return false;
+    }
+
+    // check availability of the hash, as well
+    return h.Available();
+  }
+
+  String(): string {
+    return a.toString();
+  }
+
+// Size returns number of bytes returned by the hash.
+  Size(): number {
+    const [h, ok] = algorithms[this];
+    if (!ok) {
+      return 0;
+    }
+    return h.Size();
+  }
+
+// Set implemented to allow use of Algorithm as a command line flag.
+  Set(value: string): ?Error {
+    if (value === '') {
+      Object.assign(this, Canonical);
+    } else {
+      // just do a type conversion, support is queried with Available.
+      Object.assign(this(value));
+    }
+
+    if (!this.Available()) {
+      return ErrDigestUnsupported;
+    }
+
+    return null;
+  }
+
+// Digester returns a new digester for the specified algorithm. If the algorithm
+// does not have a digester implementation, null will be returned. This can be
+// checked by calling Available before calling Digester.
+  Digester(): Digester {
+    return digester({
+      alg: this,
+      hash: this.Hash(),
+    });
+  }
+
+// Hash returns a new hash as used by the algorithm. If not available, the
+// method will panic. Check Algorithm.Available() before calling.
+  Hash(): hashHash {
+    if (!this.Available()) {
+      // Empty algorithm string is invalid
+      // noinspection EqualityComparisonWithCoercionJS
+      if (this == '') {
+        throw new Error('empty digest algorithm, validate before calling Algorithm.Hash()');
+      }
+
+      // NOTE(stevvooe): A missing hash is usually a programming error that
+      // must be resolved at compile time. We don't import in the digest
+      // package to allow users to choose their hash implementation (such as
+      // when using stevvooe/resumable or a hardware accelerated package).
+      //
+      // Applications that may want to resolve the hash at runtime should
+      // call Algorithm.Available before call Algorithm.Hash().
+      throw new Error(`${this.toString()} not available (make sure it is imported)`);
+    }
+    return algorithms[this.toString()].New();
+  }
+
+// Encode encodes the raw bytes of a digest, typically from a hash.Hash, into
+// the encoded portion of the digest.
+  Encode(d: Buffer): string {
+    // TODO(stevvooe): Currently, all algorithms use a hex encoding. When we
+    // add support for back registration, we can modify this accordingly.
+    return d.toString();
+  }
+
+
+// FromReader returns the digest of the reader using the algorithm.
+  FromReader(rd: ReadableStream): [?Digest, ?Error] {
+    const digester = a.Digester();
+    const [_, err] = io.Copy(digester.Hash(), rd);
+    if (!isNil(err)) {
+      return ['', err];
+    }
+
+    return [digester.Digest(), null];
+  }
+
+// FromBytes digests the input and returns a Digest.
+  FromBytes(p: Buffer): Digest {
+    digester = a.Digester();
+    const [_, err] = digester.Hash().Write(p);
+    if (!isNil(err)) {
+      // Writes to a Hash should never fail. None of the existing
+      // hash implementations in the stdlib or hashes vendored
+      // here can return errors from Write. Having a panic in this
+      // condition instead of having FromBytes return an error value
+      // avoids unnecessary error handling paths in all callers.
+      throw new Error(`write to hash function returned error: ${err.Error()}`);
+    }
+
+    return digester.Digest();
+  }
+
+// FromString digests the string input and returns a Digest.
+  FromString(s: string): Digest {
+    return this.FromBytes(Buffer.from(s));
+  }
+
+// Validate validates the encoded portion string
+  Validate(encoded: string): ?Error {
+    const [r, ok] = anchoredEncodedRegexps[a];
+    if (!ok) {
+      return ErrDigestUnsupported;
+    }
+    // Digests much always be hex-encoded, ensuring that their hex portion will
+    // always be size*2
+    if ((a.Size() * 2) !== encoded.length) {
+      return ErrDigestInvalidLength;
+    }
+    if (r.MatchString(encoded)) {
+      return null;
+    }
+    return ErrDigestInvalidFormat;
+  }
+}
+

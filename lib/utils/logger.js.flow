@@ -5,9 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { forceArray, defaults } = require('./lists');
 const { isError, isString } = require('./types');
-const { face } = require('./faces');
 const { mkdirp } = require('./fs');
-const C = require('../constants');
 
 const getStreamWrite = stream => s => stream.write(Buffer.from(`${s}\n`), 'utf8');
 
@@ -84,28 +82,5 @@ const getLogger = (options) => {
 const info = (...args) => _info(DEFAULT_INFO_FN, ...args);
 const error = (...args) => _error(DEFAULT_ERROR_FN, ...args);
 
-
-const faceLogTask = (t, tasksTotal, customFace, customMessage) => {
-  const padSize = Math.log10(tasksTotal) + 1;
-  return [
-    face(customFace || C.TASK_STATUS_TO_FACE[t.status]),
-    [
-      (t.order || 0).toString().padStart(padSize),
-      '/',
-      (tasksTotal || 0).toString().padEnd(padSize),
-    ].join(''),
-    t.type.padEnd(C.TASK_TYPE_MAX_LEN),
-    t.status.padEnd(C.TASK_STATUS_MAX_LEN),
-    t.task.padEnd(C.TASK_NAME_MAX_LEN),
-    customMessage || t.message || '',
-  ].join('  ');
-};
-
 // noinspection JSUnusedGlobalSymbols
-module.exports = {
-  info,
-  error,
-  format,
-  getLogger,
-  faceLogTask,
-};
+module.exports = { info, error, format, getLogger };

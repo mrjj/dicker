@@ -1,0 +1,18 @@
+[ignore]
+.*/lib/*.
+.*/dist/*.z
+
+# These shims are copied into external projects:
+.*/node_modules/pako/.*
+.*/node_modules/module-deps/.*
+.*/__mocks__/.*
+
+[include]
+
+[libs]
+
+[lints]
+
+[options]
+
+[strict]

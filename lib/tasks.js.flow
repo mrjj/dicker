@@ -16,7 +16,7 @@ const C = require('./constants');
  * @returns {Object}
  */
 const normalizeTask = async (taskObj, manifest) => {
-  let { task, targetRef, skip, type, dependsOn, status, context, dockerfile } = taskObj;
+  let { task, tag, skip, type, dependsOn, status, context, dockerfile } = taskObj;
 
   // Defaults
   status = status || C.DEFAULT_TASK_STATUS;
@@ -36,15 +36,15 @@ const normalizeTask = async (taskObj, manifest) => {
 
   if (!skip) {
     if (type === C.TASK_TYPES.DOCKER) {
-      task = task || targetRef;
-      targetRef = targetRef || task;
-      if (targetRef) {
+      task = task || tag;
+      tag = tag || task;
+      if (tag) {
         try {
-          targetRef = await normalizeDockerRef(targetRef);
-          targetRef = targetRef.replace(C.DEFAULT_DOCKER_PUBLIC_REGISTRY, '');
+          tag = await normalizeDockerRef(tag);
+          tag = tag.replace(C.DEFAULT_DOCKER_PUBLIC_REGISTRY, '');
         } catch (e) {
           error(e.message);
-          targetRef = null;
+          tag = null;
           status = C.TASK_STATUS.FAILED;
         }
       }
@@ -67,7 +67,7 @@ const normalizeTask = async (taskObj, manifest) => {
   }
   // Common post-checks
   if (!task) {
-    error(`No "task" or "targetRef" params defined for ${JSON.stringify(taskObj)} so can't define task name`);
+    error(`No "task" or "tag" params defined for ${JSON.stringify(taskObj)} so can't define task name`);
     task = C.DEAD_TASK_NAME;
     status = C.TASK_STATUS.FAILED;
   }
@@ -78,7 +78,7 @@ const normalizeTask = async (taskObj, manifest) => {
     context,
     skip,
     status,
-    targetRef,
+    tag,
     task,
     type,
   };
@@ -142,14 +142,14 @@ const sortTasks = (tasks) => {
  * @returns {string}
  */
 const makeTaskCommand = (taskObj, manifest, extraArgsStr) => {
-  const { type, targetRef, args, dockerfile, context, skip, task } = taskObj;
+  const { type, tag, args, dockerfile, context, skip, task } = taskObj;
   if (type === C.TASK_TYPES.CONTROL) {
     return null;
   }
   const dockerfileCmd = `-f ${dockerfile} `;
   const buildArgs = formatBuildArgs(args);
 
-  const imageNameWithTag = `-t ${targetRef || C.DEFAULT_IMAGE_NAME}`;
+  const imageNameWithTag = `-t ${tag || C.DEFAULT_IMAGE_NAME}`;
   let commandParts;
 
 

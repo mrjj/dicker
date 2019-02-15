@@ -1,8 +1,8 @@
-- targetRef: 'basic-hello-world:0.0.1'
+- tag: 'basic-hello-world:0.0.1'
   dockerfile: ./trivial
 
 - task: vanilla-hello-world
-  targetRef: hello-world
+  tag: hello-world
   dockerfile: ./trivial
 
 - dockerfile: ./trivial
@@ -12,11 +12,11 @@
   task: skipme
 
 - dockerfile: ./trivial
-  targetRef: 'misctag-hello-world:ineedbasic'
+  tag: 'misctag-hello-world:ineedbasic'
   dependsOn: [vanilla-hello-world, basic-hello-world]
 
 - dockerfile: ./trivial
-  targetRef: misctag-hello-world
+  tag: misctag-hello-world
   dependsOn: vanilla-hello-world
 
 - dockerfile: ./trivial
@@ -24,7 +24,7 @@
   dependsOn: vanilla-hello-world
 
 - dependsOn: [basic-hello-world, misctag-hello-world, vanilla-hello-world]
-  targetRef: node:10-centos7
+  tag: node:10-centos7
   dockerfile: node-test/Dockerfile
   context: ./myartifacts/
   description: 'This message shows that your installation appears to be working correctly.'
@@ -35,6 +35,6 @@
 
 - task: secnode
   dependsOn: [node]
-  targetRef: node/test-node:latest
+  tag: node/test-node:latest
   dockerfile: ./trivial
 

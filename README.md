@@ -21,14 +21,14 @@ Example build configuration file is quite trivial too:
 ```json
 [
   {
-    "targetRef": "basic-hello-world:0.0.1"
+    "tag": "basic-hello-world:0.0.1"
   },
   {
-    "targetRef": "more-basic-hello-world:latest"
+    "tag": "more-basic-hello-world:latest"
   },
   {
     "task": "vanilla-hello-world",
-    "targetRef": "hello-world"
+    "tag": "hello-world"
   },
   {
     "task": "advanced-hello-world",
@@ -38,7 +38,7 @@ Example build configuration file is quite trivial too:
     "task": "advanced-node-test",
     "dependsOn": ["basic-hello-world:0.0.1", "more-basic-hello-world", "vanilla-hello-world"],
     "dockerfile": "node-test/Dockerfile",
-    "targetRef": "advanced-node-test:latest",
+    "tag": "advanced-node-test:latest",
     "context": "./myartifacts/",
     "description": "This message shows that your installation appears to be working correctly.",
     "license": "MIT",
@@ -82,7 +82,7 @@ If you have a lot of containers in single manifest you could use `"skip": false`
 
 Build report output is supposed to be produced in touch with build process, to be easy human- and machine- readable and include some small solutions related to problems of parallel runs output multiplexing in single channel as well as mitigation of everyday log-watching boredom.
 
-Task name "task" parameter is considered as an alias of "targetRef".
+Task name "task" parameter is considered as an alias of "tag".
 
 ### Portable Dicker
 

@@ -1,7 +1,7 @@
 [
   {
     "task": "vanilla-hello-world",
-    "targetRef": "hello-world",
+    "tag": "hello-world",
     "dockerfile": "./trivial"
   }
 ]

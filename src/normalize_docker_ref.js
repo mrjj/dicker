@@ -1,11 +1,8 @@
+const path = require('path');
 const GoNode = require('gonode');
-const shell = require('shelljs');
-
-const __ENTRY_POINT = shell.pwd().toString();
-
 
 const NormalizeDockerRef = ref => new Promise((resolve, reject) => {
-  const go = new GoNode.Go({ path: `${__ENTRY_POINT}/src/normalize_docker_ref.gonode.go` });
+  const go = new GoNode.Go({ path: `${path.dirname(__filename)}/normalize_docker_ref.gonode.go` });
   go.init((err) => {
     if (err) {
       return reject(new Error(`Initialization failed ${err}`));

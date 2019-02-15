@@ -15,16 +15,24 @@ const TASK_STATUS = {
   UNKNOWN: 'UNKNOWN',
 };
 
+const TASK_TYPES = {
+  CONTROL: 'CONTROL',
+  DOCKER: 'DOCKER',
+};
+
+const DEFAULT_TASK_TYPE = TASK_TYPES.DOCKER;
+const DEFAULT_TASK_STATUS = TASK_STATUS.PENDING;
+const DEAD_TASK_NAME = '$_dead_$';
 /**
  * @constant ROOT_TASK_NAME
  * @type {string}
  */
 const ROOT_TASK = {
-  task: '$_ROOT_TASK_$',
+  type: TASK_TYPES.CONTROL,
+  task: '$_root_task_$',
   description: 'Root task (will not be executed)',
-  skip: true,
-  status: TASK_STATUS.SKIPPED,
-  dockerfile: null,
+  skip: false,
+  status: DEFAULT_TASK_STATUS,
 };
 
 /**
@@ -81,13 +89,17 @@ const TASK_STATUS_TO_FACE = {
   [TASK_STATUS.UNKNOWN]: FACES.NDE,
 };
 
+const TASK_NAME_MAX_LEN = 32;
 const TASK_STATUS_MAX_LEN = Object.keys(TASK_STATUS)
+  .map(ts => ts.length)
+  .sort((a, b) => (b - a))[0];
+const TASK_TYPE_MAX_LEN = Object.keys(TASK_TYPES)
   .map(ts => ts.length)
   .sort((a, b) => (b - a))[0];
 
 const SEP = `${'-'.repeat(16)}`;
 
-const DEFAULT_DOCKER_PUBLIC_REGISTRY = 'registry-1.docker.io';
+const DEFAULT_DOCKER_PUBLIC_REGISTRY = 'docker.io/library/';
 const DEFAULT_NAME = 'dicker-default';
 
 const LEGACY_DEFAULT_DOMAIN = 'index.docker.io';
@@ -96,21 +108,37 @@ const OFFICIAL_REPO_NAME = 'library';
 const DEFAULT_TAG = 'latest';
 
 const PATH_SEPARATOR = '/';
+const LOCALHOST = 'localhost';
+
+const POSSIBLE_EXTENSIONS = ['.json', '.yml', '.yaml'];
+const DEFAULT_DOCKERFILE_NAME = 'Dockerfile';
+
+const DEFAULT_ENCODING = 'utf8';
 
 module.exports = {
+  DEAD_TASK_NAME,
   DEFAULT_DOCKER_PUBLIC_REGISTRY,
-  DEFAULT_NAME,
+  DEFAULT_DOCKERFILE_NAME,
+  DEFAULT_DOMAIN,
+  DEFAULT_ENCODING,
   DEFAULT_IMAGE_NAME,
   DEFAULT_MANIFEST_PATH,
+  DEFAULT_NAME,
+  DEFAULT_TAG,
+  DEFAULT_TASK_STATUS,
+  DEFAULT_TASK_TYPE,
   FACES,
-  TASK_STATUS,
-  TASK_STATUS_TO_FACE,
-  TASK_STATUS_MAX_LEN,
+  LEGACY_DEFAULT_DOMAIN,
+  LOCALHOST,
+  OFFICIAL_REPO_NAME,
+  PATH_SEPARATOR,
+  POSSIBLE_EXTENSIONS,
   ROOT_TASK,
   SEP,
-  LEGACY_DEFAULT_DOMAIN,
-  DEFAULT_DOMAIN,
-  OFFICIAL_REPO_NAME,
-  DEFAULT_TAG,
-  PATH_SEPARATOR,
+  TASK_NAME_MAX_LEN,
+  TASK_STATUS,
+  TASK_STATUS_MAX_LEN,
+  TASK_STATUS_TO_FACE,
+  TASK_TYPE_MAX_LEN,
+  TASK_TYPES,
 };

@@ -2,7 +2,6 @@
   dockerfile: ./trivial
 
 - task: vanilla-hello-world
-  fromRef: 'https://hub.docker.com/'
   targetRef: hello-world
   dockerfile: ./trivial
 
@@ -13,11 +12,11 @@
   task: skipme
 
 - dockerfile: ./trivial
-  fromRef: 'misctag-hello-world:ineedbasic'
+  targetRef: 'misctag-hello-world:ineedbasic'
   dependsOn: [vanilla-hello-world, basic-hello-world]
 
 - dockerfile: ./trivial
-  fromRef: misctag-hello-world
+  targetRef: misctag-hello-world
   dependsOn: vanilla-hello-world
 
 - dockerfile: ./trivial
@@ -25,8 +24,7 @@
   dependsOn: vanilla-hello-world
 
 - dependsOn: [basic-hello-world, misctag-hello-world, vanilla-hello-world]
-  fromRef: 'dicker/node-test:0.1.5'
-  targetRef: advanced-node-test
+  targetRef: 'dicker/node-test:0.1.5'
   dockerfile: node-test/Dockerfile
   context: ./myartifacts/
   description: 'This message shows that your installation appears to be working correctly.'

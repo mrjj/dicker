@@ -21,7 +21,6 @@ Example build configuration file is quite trivial too:
 ```json
 [
   {
-    "fromRef": "basic-hello-world",
     "targetRef": "basic-hello-world:0.0.1"
   },
   {
@@ -29,7 +28,7 @@ Example build configuration file is quite trivial too:
   },
   {
     "task": "vanilla-hello-world",
-    "fromRef": "hello-world"
+    "targetRef": "hello-world"
   },
   {
     "task": "advanced-hello-world",
@@ -38,9 +37,8 @@ Example build configuration file is quite trivial too:
   {
     "task": "advanced-node-test",
     "dependsOn": ["basic-hello-world:0.0.1", "more-basic-hello-world", "vanilla-hello-world"],
-    "fromRef": "dicker/node-test",
     "dockerfile": "node-test/Dockerfile",
-    "targetRef": "advanced-node-test",
+    "targetRef": "advanced-node-test:latest",
     "context": "./myartifacts/",
     "description": "This message shows that your installation appears to be working correctly.",
     "license": "MIT",

@@ -16,7 +16,7 @@ const C = require('./constants');
  * @returns {Object}
  */
 const normalizeTask = async (taskObj, manifest) => {
-  let { task, fromRef, targetRef, skip, type, dependsOn, status, context, dockerfile } = taskObj;
+  let { task, targetRef, skip, type, dependsOn, status, context, dockerfile } = taskObj;
 
   // Defaults
   status = status || C.DEFAULT_TASK_STATUS;
@@ -36,28 +36,14 @@ const normalizeTask = async (taskObj, manifest) => {
 
   if (!skip) {
     if (type === C.TASK_TYPES.DOCKER) {
-      task = task || targetRef || fromRef;
+      task = task || targetRef;
       targetRef = targetRef || task;
-      fromRef = targetRef || task;
-
-      if (fromRef) {
-        try {
-          fromRef = await normalizeDockerRef(fromRef);
-          fromRef = fromRef.replace(C.DEFAULT_DOCKER_PUBLIC_REGISTRY, '');
-        } catch (e) {
-          error(e.message);
-          fromRef = null;
-          targetRef = null;
-          status = C.TASK_STATUS.FAILED;
-        }
-      }
       if (targetRef) {
         try {
           targetRef = await normalizeDockerRef(targetRef);
           targetRef = targetRef.replace(C.DEFAULT_DOCKER_PUBLIC_REGISTRY, '');
         } catch (e) {
           error(e.message);
-          fromRef = null;
           targetRef = null;
           status = C.TASK_STATUS.FAILED;
         }
@@ -81,7 +67,7 @@ const normalizeTask = async (taskObj, manifest) => {
   }
   // Common post-checks
   if (!task) {
-    error(`No "task" or "targetRef" or "fromRef" params defined for ${JSON.stringify(taskObj)} so can't define task name`);
+    error(`No "task" or "targetRef" params defined for ${JSON.stringify(taskObj)} so can't define task name`);
     task = C.DEAD_TASK_NAME;
     status = C.TASK_STATUS.FAILED;
   }
@@ -90,7 +76,6 @@ const normalizeTask = async (taskObj, manifest) => {
     dependsOn,
     dockerfile,
     context,
-    fromRef,
     skip,
     status,
     targetRef,
@@ -157,7 +142,7 @@ const sortTasks = (tasks) => {
  * @returns {string}
  */
 const makeTaskCommand = (taskObj, manifest, extraArgsStr) => {
-  const { type, fromRef, targetRef, args, dockerfile, context, skip } = taskObj;
+  const { type, targetRef, args, dockerfile, context, skip, task } = taskObj;
   if (type === C.TASK_TYPES.CONTROL) {
     return null;
   }
@@ -169,10 +154,7 @@ const makeTaskCommand = (taskObj, manifest, extraArgsStr) => {
 
 
   if (skip) {
-    commandParts = [
-      'echo',
-      `'Task "${fromRef}" is skipped'`,
-    ];
+    commandParts = ['echo', `'Task "${task}" is skipped'`];
   } else {
     commandParts = [
       'docker',

@@ -1,7 +1,7 @@
 {
   "name": "dicker",
   "description": "Dicker - Trivial docker build system",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "author": {
     "name": "Ilya Kutukov",
     "url": "https://github.com/mrjj/",

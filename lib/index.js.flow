@@ -38,7 +38,9 @@ const startTasks = async (manifestPath, extraArgsStr) => {
         status = C.TASK_STATUS.FAILED;
       }
     }
-    status = skip ? C.TASK_STATUS.SKIPPED : (status || C.TASK_STATUS.PENDING);
+    status = (skip && (status !== C.TASK_STATUS.FAILED))
+      ? C.TASK_STATUS.SKIPPED
+      : (status || C.TASK_STATUS.PENDING);
     return defaults(
       taskObj,
       {
@@ -86,7 +88,17 @@ const startTasks = async (manifestPath, extraArgsStr) => {
           {
             message,
             code: 0,
-            status: C.TASK_STATUS.SKIPPED,
+          },
+        );
+        return taskObj;
+      };
+    } else if (status === C.TASK_STATUS.FAILED) {
+      innerFunction = async () => {
+        info(faceLog(C.FACES.DIZZY, 'Task have been failed before start.'));
+        Object.assign(
+          taskObj,
+          {
+            code: 1,
           },
         );
         return taskObj;

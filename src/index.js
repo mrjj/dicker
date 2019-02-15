@@ -32,8 +32,9 @@ const startTasks = async (manifestPath, extraArgsStr) => {
     let { command, status } = taskObj;
     const { type, skip, task } = taskObj;
     if (type === C.TASK_TYPES.DOCKER) {
-      command = taskObj ? makeTaskCommand(taskObj, manifestPath, extraArgsStr) : null;
+      command = makeTaskCommand(taskObj, manifestPath, extraArgsStr);
       if (!command) {
+        error(`Cant make command for task: "${task}"`);
         status = C.TASK_STATUS.FAILED;
       }
     }

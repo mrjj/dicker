@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const shell = require('shelljs');
+const yaml = require('js-yaml');
 const { forceArray } = require('./utils/lists');
 const { info, error } = require('./utils/logger');
 const C = require('./constants');
@@ -42,7 +43,17 @@ const loadManifest = async (manifestPath) => {
     error(`Manifest path do not exists: "${mp}", exiting with code 1`);
     shell.exit(1);
   } else {
-    const tasks = forceArray(JSON.parse(shell.cat(mp)));
+    let tasks = [];
+    const ext = path.extname(manifestPath).toLowerCase();
+    if (C.POSSIBLE_EXTENSIONS.indexOf(ext) === -1) {
+      throw new Error(`Unknown file format: "${ext}" of file "${mp}"`);
+    }
+    const data = fs.readFileSync(mp, C.DEFAULT_ENCODING);
+    if (['.json'].indexOf(ext) !== -1) {
+      tasks = forceArray(JSON.parse(data));
+    } else if (['.yaml', '.yml'].indexOf(ext) !== -1) {
+      tasks = forceArray(yaml.safeLoad(data));
+    }
     if (tasks.length === 0) {
       error(`No tasks defined in manifest: "${mp}", exiting with code 0`);
       shell.exit(0);

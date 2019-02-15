@@ -1,7 +1,7 @@
 {
   "name": "dicker",
   "description": "Dicker - Trivial docker build system",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": {
     "name": "Ilya Kutukov",
     "url": "https://github.com/mrjj/",
@@ -32,7 +32,8 @@
   "dependencies": {
     "shelljs": "0.8.3",
     "toposort": "2.0.2",
-    "gonode": "0.1.2"
+    "gonode": "0.1.2",
+    "js-yaml": "3.12.1"
   },
   "devDependencies": {
     "babel-cli": "6.26.0",
@@ -61,7 +62,9 @@
     "start": "node bin/dicker",
     "build:flow": "flow-copy-source ./src/ ./lib/",
     "build": "pkg bin/dicker --options max_old_space_size=4096 --out-path build",
-    "test:build": "node bin/dicker ./example/build.json",
+    "test:build": "npm run test:build:json && npm run test:build:yaml",
+    "test:build:json": "node bin/dicker ./example/build.json",
+    "test:build:yaml": "node bin/dicker ./example/build.yaml",
     "lint": "eslint ./src",
     "test:jest": "jest ./src --coverage --verbose false --runInBand",
     "test": "npm run test:build && npm run test:jest",

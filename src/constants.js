@@ -99,7 +99,7 @@ const TASK_TYPE_MAX_LEN = Object.keys(TASK_TYPES)
 
 const SEP = `${'-'.repeat(16)}`;
 
-const DEFAULT_DOCKER_PUBLIC_REGISTRY = 'docker.io/library/';
+const DEFAULT_DOCKER_PUBLIC_REGISTRY = 'docker.io/';
 const DEFAULT_NAME = 'dicker-default';
 
 const LEGACY_DEFAULT_DOMAIN = 'index.docker.io';

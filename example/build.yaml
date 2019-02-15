@@ -24,10 +24,17 @@
   dependsOn: vanilla-hello-world
 
 - dependsOn: [basic-hello-world, misctag-hello-world, vanilla-hello-world]
-  targetRef: 'dicker/node-test:0.1.5'
+  targetRef: node:10-centos7
   dockerfile: node-test/Dockerfile
   context: ./myartifacts/
   description: 'This message shows that your installation appears to be working correctly.'
   license: MIT
   args:
     BUILD_FROM: 'node:10.13.0-alpine'
+
+
+- task: secnode
+  dependsOn: [node]
+  targetRef: node/test-node:latest
+  dockerfile: ./trivial
+

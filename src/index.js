@@ -54,8 +54,10 @@ const startTasks = async (manifestPath, extraArgsStr) => {
     );
   });
 
+  const tasksDict = {};
   sortedTasks.forEach((taskObj) => {
-    const { command, status, description } = taskObj;
+    const { command, status, description, task } = taskObj;
+    tasksDict[task] = taskObj;
     let publicResolve;
     let publicReject;
 
@@ -92,19 +94,37 @@ const startTasks = async (manifestPath, extraArgsStr) => {
         );
         return taskObj;
       };
-    } else if (status === C.TASK_STATUS.FAILED) {
-      innerFunction = async () => {
-        info(faceLog(C.FACES.DIZZY, 'Task have been failed before start.'));
-        Object.assign(
-          taskObj,
-          {
-            code: 1,
-          },
-        );
-        return taskObj;
-      };
     } else {
       innerFunction = () => {
+        if (taskObj.status === C.TASK_STATUS.FAILED) {
+          info(faceLog(C.FACES.DIZZY, 'Task have been failed before start.'));
+          Object.assign(
+            taskObj,
+            {
+              code: 1,
+            },
+          );
+          return taskObj;
+        }
+        const failedDeps = taskObj.dependsOn.filter(
+          dt => (tasksDict[dt].status !== C.TASK_STATUS.DONE),
+        );
+        if (failedDeps.length > 0) {
+          const fdStr = failedDeps.map(d => `"${d}"`).join(', ');
+          const message = `Task have been failed before start due following upstream dependencies not being resolved: ${fdStr}.`;
+          info(faceLog(C.FACES.DIZZY, message));
+          Object.assign(
+            taskObj,
+            {
+              message,
+              status: C.TASK_STATUS.FAILED,
+              code: 1,
+            },
+          );
+          return taskObj;
+        }
+
+
         info(faceLog(C.FACES.CALMED_DOWN, `$ ${command}`));
 
         Object.assign(
@@ -140,7 +160,6 @@ const startTasks = async (manifestPath, extraArgsStr) => {
               .join('\n')));
 
             dockerRun.on('error', e => error(faceLog(C.FACES.INSPECTOR, format('STDERR:', e))));
-
 
             return new Promise((cloRes) => {
               dockerRun.on(

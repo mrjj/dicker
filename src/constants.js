@@ -29,6 +29,7 @@ const DEAD_TASK_NAME = '$_dead_$';
  */
 const ROOT_TASK = {
   type: TASK_TYPES.CONTROL,
+  dependsOn: [],
   task: '$_root_task_$',
   description: 'Root task (will not be executed)',
   skip: false,

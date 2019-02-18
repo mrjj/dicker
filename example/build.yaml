@@ -32,9 +32,7 @@
   args:
     BUILD_FROM: 'node:10.13.0-alpine'
 
-
-- task: secnode
+- task: second
   dependsOn: [node]
   tag: node/test-node:latest
   dockerfile: ./trivial
-

@@ -25,16 +25,16 @@ process.on('unhandledRejection', onError);
 /**
  * Main logic
  */
-const startTasks = async (manifestPath, extraArgsStr) => {
+const startTasks = async (manifestPath, dryRun = false, extraArgsStr) => {
   const tasks = await loadManifest(manifestPath);
   const normalizedTasks = await promiseMap(tasks, async t => normalizeTask(t, manifestPath));
-  const sortedTasks = sortTasks(normalizedTasks).map((taskObj, order) => {
+  const sortedTasks = sortTasks(normalizedTasks).map((taskObj, idx) => {
     let { command, status } = taskObj;
     const { type, skip, task } = taskObj;
-    if (type === C.TASK_TYPES.DOCKER) {
-      command = makeTaskCommand(taskObj, manifestPath, extraArgsStr);
+    if ((type === C.TASK_TYPES.DOCKER_BUILD) || (type === C.TASK_TYPES.DOCKER_PUSH)) {
+      command = makeTaskCommand(taskObj, manifestPath, dryRun, extraArgsStr);
       if (!command) {
-        error(`Cant make command for task: "${task}"`);
+        error(`Can't make command for task: "${task}"`);
         status = C.TASK_STATUS.FAILED;
       }
     }
@@ -44,7 +44,7 @@ const startTasks = async (manifestPath, extraArgsStr) => {
     return defaults(
       taskObj,
       {
-        order,
+        order: idx + 1,
         task,
         skip,
         command,
@@ -66,7 +66,13 @@ const startTasks = async (manifestPath, extraArgsStr) => {
       publicReject = rej;
     });
 
-    const faceLog = (faceCode, message) => faceLogTask(taskObj, tasks.length, faceCode, message);
+    // Wrap logger for current task
+    const faceLog = (faceCode, message) => faceLogTask(
+      taskObj,
+      sortedTasks.length,
+      faceCode,
+      message,
+    );
 
     let innerFunction = async () => {
       Object.assign(
@@ -125,7 +131,7 @@ const startTasks = async (manifestPath, extraArgsStr) => {
         }
 
 
-        info(faceLog(C.FACES.CALMED_DOWN, `$ ${command}`));
+        info(faceLog(C.FACES.CALMED_DOWN, command ? `$ ${command}` : 'No command'));
 
         Object.assign(
           taskObj,
@@ -141,43 +147,45 @@ const startTasks = async (manifestPath, extraArgsStr) => {
         );
         info(faceLog(C.FACES.SURPRISED, taskObj.message));
 
+        const dockerExecutor = async () => {
+          const dockerRun = shell.exec(command, {
+            async: true,
+            silent: true,
+          });
+          dockerRun.stdout.on('data', buff => info(getDataLines(buff)
+            .map(l => faceLog(C.FACES.INSPECTOR, `STDOUT: ${l}`))
+            .join('\n')));
+          dockerRun.stderr.on('data', buff => info(getDataLines(buff)
+            .map(l => faceLog(C.FACES.INSPECTOR, `STDERR: ${l}`))
+            .join('\n')));
+
+          dockerRun.on('error', e => error(faceLog(C.FACES.INSPECTOR, format('STDERR:', e))));
+
+          return new Promise((cloRes) => {
+            dockerRun.on(
+              'close',
+              (code) => {
+                Object.assign(taskObj, {
+                  code,
+                  status: (code === 0) ? C.TASK_STATUS.DONE : C.TASK_STATUS.FAILED,
+                  message: (code === 0) ? 'Completed successful!' : `Failed with code: ${code}!`,
+                });
+
+                // Don't fail
+                info(faceLog(code === 0 ? C.FACES.HAPPY : C.FACES.DEAD));
+                cloRes(taskObj);
+              },
+            );
+          });
+        };
         const TYPE_EXECUTORS = {
           [C.TASK_TYPES.CONTROL]: async () => Object.assign(taskObj, {
             code: 0,
             status: C.TASK_STATUS.DONE,
             message: 'Completed successful!',
           }),
-          [C.TASK_TYPES.DOCKER]: async () => {
-            const dockerRun = shell.exec(command, {
-              async: true,
-              silent: true,
-            });
-            dockerRun.stdout.on('data', buff => info(getDataLines(buff)
-              .map(l => faceLog(C.FACES.INSPECTOR, `STDOUT: ${l}`))
-              .join('\n')));
-            dockerRun.stderr.on('data', buff => info(getDataLines(buff)
-              .map(l => faceLog(C.FACES.INSPECTOR, `STDERR: ${l}`))
-              .join('\n')));
-
-            dockerRun.on('error', e => error(faceLog(C.FACES.INSPECTOR, format('STDERR:', e))));
-
-            return new Promise((cloRes) => {
-              dockerRun.on(
-                'close',
-                (code) => {
-                  Object.assign(taskObj, {
-                    code,
-                    status: (code === 0) ? C.TASK_STATUS.DONE : C.TASK_STATUS.FAILED,
-                    message: (code === 0) ? 'Completed successful!' : `Failed with code: ${code}!`,
-                  });
-
-                  // Don't fail
-                  info(faceLog(code === 0 ? C.FACES.HAPPY : C.FACES.DEAD));
-                  cloRes(taskObj);
-                },
-              );
-            });
-          },
+          [C.TASK_TYPES.DOCKER_BUILD]: dockerExecutor,
+          [C.TASK_TYPES.DOCKER_PUSH]: dockerExecutor,
         };
         return TYPE_EXECUTORS[taskObj.type]();
       };
@@ -204,8 +212,8 @@ const startTasks = async (manifestPath, extraArgsStr) => {
     );
   });
 
-  info('Following containers build order will be used:');
-  info(sortedTasks.map(t => `  ${faceLogTask(t, tasks.length)}`).join('\n'));
+  info('Following tasks execution order will be used:');
+  info(sortedTasks.map(t => `  ${faceLogTask(t, sortedTasks.length)}`).join('\n'));
   info('');
   info(`Docker containers build started at: ${now()}`);
   return promiseMap(sortedTasks, t => t.fn());
@@ -218,10 +226,13 @@ const run = async (manifestPath, extraArgs) => {
       (process.argv.length > 2) ? process.argv[2] : C.DEFAULT_MANIFEST_PATH
     ),
   );
-  const args = extraArgs || ((process.argv.length > 3) ? Array.from(process.argv)
-    .slice(3)
-    .join(' ') : '');
-  const res = await startTasks(manifestFilePath, args);
+  const argsAll = extraArgs ? extraArgs : ((process.argv.length > 3) ? Array.from(process.argv).slice(3) : []);
+  const dryRun = argsAll.indexOf('--dry-run') !== -1;
+  if (dryRun) {
+    info('Using DRY RUN mode, no commands will be actually executes');
+  }
+  const dockerArgs = argsAll.filter(a => (a !== '--dry-run'));
+  const res = await startTasks(manifestFilePath, dryRun, dockerArgs.join(' '));
   const resultingTasks = forceArray(res);
   info([
     '',

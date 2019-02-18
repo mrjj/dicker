@@ -35,7 +35,7 @@ const normalizeTask = async (taskObj, manifest) => {
   }
 
   if (!skip) {
-    if (type === C.TASK_TYPES.DOCKER) {
+    if (type === C.TASK_TYPES.DOCKER_BUILD) {
       task = task || tag;
       tag = tag || task;
       if (tag) {
@@ -101,13 +101,38 @@ const sortTasks = (tasks) => {
       [],
     ).forEach((dt) => {
       if (!existingTasksDict[dt]) {
-        const t = (taskObj.task === dt) ? taskObj : {
-          task: dt,
-          type: C.TASK_TYPES.CONTROL,
-          skip: false,
-          dependsOn: [taskObj.task],
-        };
-        extrapolatedTasks.push(t);
+        let t = taskObj;
+        if (taskObj.task !== dt) {
+          t = {
+            task: dt,
+            type: C.TASK_TYPES.CONTROL,
+            skip: false,
+            dependsOn: [taskObj.task],
+          };
+        }
+        // Insert generated technical tasks
+        if ((t.type === C.TASK_TYPES.DOCKER_BUILD) && (t.push === true)) {
+          const pushTaskName = t.task;
+          // Push is keeps name of original task and dependency of predceeding being inserted to
+          // keep downstream to this task integrity
+          const buildTaskName = `${t.task}:$_build_$`;
+          const buildTask = {
+            ...t,
+            type: C.TASK_TYPES.DOCKER_BUILD,
+            task: buildTaskName,
+          };
+          const pushTask = {
+            ...t,
+            type: C.TASK_TYPES.DOCKER_PUSH,
+            dependsOn: [buildTaskName],
+          };
+          extrapolatedTasks.push(buildTask);
+          existingTasksDict[buildTaskName] = buildTask;
+          extrapolatedTasks.push(pushTask);
+          existingTasksDict[pushTaskName] = pushTask;
+        } else {
+          extrapolatedTasks.push(t);
+        }
       }
     });
   });
@@ -141,7 +166,7 @@ const sortTasks = (tasks) => {
  * @param extraArgsStr
  * @returns {string}
  */
-const makeTaskCommand = (taskObj, manifest, extraArgsStr) => {
+const makeTaskCommand = (taskObj, manifest, dryRun = false, extraArgsStr) => {
   const { type, tag, args, dockerfile, context, skip, task } = taskObj;
   if (type === C.TASK_TYPES.CONTROL) {
     return null;
@@ -149,25 +174,37 @@ const makeTaskCommand = (taskObj, manifest, extraArgsStr) => {
   const dockerfileCmd = `-f ${dockerfile} `;
   const buildArgs = formatBuildArgs(args);
 
-  const imageNameWithTag = `-t ${tag || C.DEFAULT_IMAGE_NAME}`;
   let commandParts;
 
 
+  const imageNameWithTag = tag || C.DEFAULT_IMAGE_NAME;
+
   if (skip) {
     commandParts = ['echo', `'Task "${task}" is skipped'`];
-  } else {
+  } else if (taskObj.type === C.TASK_TYPES.DOCKER_BUILD) {
     commandParts = [
       'docker',
       'build',
+      ...((!extraArgsStr || (extraArgsStr.length === 0)) ? C.DOCKER_BUILD_MANDATORY_FLAGS : []),
       ...buildArgs,
       dockerfileCmd,
-      imageNameWithTag,
+      `-t ${imageNameWithTag}`,
       extraArgsStr,
       context,
     ];
+  } else if (taskObj.type === C.TASK_TYPES.DOCKER_PUSH) {
+    commandParts = [
+      'docker',
+      'push',
+      imageNameWithTag,
+    ];
   }
 
-  return commandParts.filter(x => !!x).join(' ');
+  const command = commandParts.filter(x => !!x).join(' ');
+  if (dryRun) {
+    return `echo "dry run of ${command.replace('"', '\\"')}"`;
+  }
+  return command;
 };
 
 

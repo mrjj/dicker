@@ -1,0 +1,10 @@
+- task: task_nopush
+  push: false
+  tag: node/task_push:latest
+  dockerfile: ./trivial
+
+- task: task_push
+  push: true
+  dependsOn: [task_nopush]
+  tag: node/task_push:latest
+  dockerfile: ./trivial

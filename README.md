@@ -4,6 +4,8 @@ Trivial docker build tool
 
 Version: `2.9.0`
 
+[![CircleCI](https://circleci.com/gh/mrjj/dicker/tree/master.svg?style=svg)](https://circleci.com/gh/mrjj/dicker/tree/master)
+
 _TODO: verify documentation!_ 
 
 ## Installation

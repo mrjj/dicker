@@ -2,7 +2,7 @@
 
 Trivial docker build tool
 
-Version: `2.0.0`
+Version: `2.9.0`
 
 _TODO: verify documentation!_ 
 
@@ -28,7 +28,7 @@ Example build configuration file is quite trivial too:
   },
   {
     "task": "vanilla-hello-world",
-    "tag": "hello-world"
+    "tags": ["hello-world", "hello-world:latest"]
   },
   {
     "task": "advanced-hello-world",

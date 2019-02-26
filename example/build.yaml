@@ -2,7 +2,7 @@
   dockerfile: ./trivial
 
 - task: vanilla-hello-world
-  tag: hello-world
+  tags: ['hello-world', 'hello-world:latest']
   dockerfile: ./trivial
 
 - dockerfile: ./trivial

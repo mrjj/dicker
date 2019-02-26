@@ -1,7 +1,37 @@
 #!/usr/bin/env node
-
 /**
  * @fileOverview: main Dicker file
  */
 
-require('../src/index.js')();
+const commander = require('commander');
+const fs = require('fs');
+const path = require('path');
+const C = require('../src/constants');
+
+const run = require('../src/index.js');
+
+const packageJsonPath = `${path.dirname(__filename)}/../package.json`;
+const version = JSON.parse(fs.readFileSync(packageJsonPath)).version || 'Version Unknown';
+
+const subIdx = process.argv.indexOf('--');
+const argv = subIdx === -1 ? process.argv: process.argv.slice(0, process.argv.indexOf('--'));
+const subArgv = subIdx === -1 ? [] : process.argv.slice(subIdx + 1);
+commander
+  .version(version)
+  .usage('[dicker_manifest_path] [options]')
+  .description('Run Dicker with given config')
+  .option('-d, --dry-run', 'Dry run')
+  .action((dicker_manifest_path, options) => {
+    const manifestPath = dicker_manifest_path || C.DEFAULT_MANIFEST_PATH;
+    run({
+      manifestPath,
+      runArgs: subArgv || [],
+      dryRun: options.dryRun,
+    })
+      .then()
+      .catch((e) => {
+        process.stderr.write(`Error: ${e && e.message}\n${e && e.stack}\n`);
+        process.exit(1);
+      });
+  })
+  .parse(argv);

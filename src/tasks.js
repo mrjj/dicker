@@ -3,24 +3,43 @@ const path = require('path');
 const shell = require('shelljs');
 const toposort = require('toposort');
 const { isEmpty } = require('./utils/types');
-const { forceArray } = require('./utils/lists');
-const { formatBuildArgs } = require('./utils/cli');
+const { promiseMap, forceArray } = require('./utils/lists');
+const { formatArgs, formatBuildArgs } = require('./utils/cli');
 const { error } = require('./utils/logger');
 const normalizeDockerRef = require('./normalize_docker_ref');
 const C = require('./constants');
 
+const uniq = (arr) => {
+  const seen = {};
+  const result = [];
+  arr.forEach((el) => {
+    if (!seen[el]) {
+      seen[el] = true;
+      result.push(el);
+    }
+  });
+  return result;
+};
 /**
  *
  * @param taskObj
- * @param manifest
+ * @param params
  * @returns {Object}
  */
-const normalizeTask = async (taskObj, manifest) => {
-  let { task, tag, skip, type, dependsOn, status, context, dockerfile } = taskObj;
+const normalizeTask = async (taskObj, params) => {
+  let { task, tags, skip, type, dependsOn, status, context, dockerfile } = taskObj;
+  const { command, validate, tag } = taskObj;
+  const { manifestPath } = params;
 
   // Defaults
+  tags = uniq([
+    ...(Array.isArray(tag) ? tags : [tag]),
+    ...(Array.isArray(tags) ? tags : [tags]),
+  ].filter(t => !!t).sort());
   status = status || C.DEFAULT_TASK_STATUS;
-  type = type || C.DEFAULT_TASK_TYPE;
+  type = type || (
+    (command && ((!dockerfile) && (tags.length === 0))) ? C.TASK_TYPES.COMMAND : C.DEFAULT_TASK_TYPE
+  );
   skip = !!skip;
   dockerfile = dockerfile || null;
   context = context || null;
@@ -36,29 +55,31 @@ const normalizeTask = async (taskObj, manifest) => {
 
   if (!skip) {
     if (type === C.TASK_TYPES.DOCKER_BUILD) {
-      task = task || tag;
-      tag = tag || task;
-      if (tag) {
+      task = task || (tags[0] || null);
+      tags = ((tags.length === 0) && task) ? [task] : tags;
+      if (tags.length > 0) {
         try {
-          tag = await normalizeDockerRef(tag);
-          tag = tag.replace(C.DEFAULT_DOCKER_PUBLIC_REGISTRY, '');
+          tags = await promiseMap(
+            tags,
+            async t => (await normalizeDockerRef(t)).replace(C.DEFAULT_DOCKER_PUBLIC_REGISTRY, ''),
+          );
         } catch (e) {
           error(e.message);
-          tag = null;
+          tags = [];
           status = C.TASK_STATUS.FAILED;
         }
       }
 
       if (dockerfile) {
         if (!path.isAbsolute(dockerfile)) {
-          dockerfile = path.join(path.dirname(manifest), dockerfile);
+          dockerfile = path.join(path.dirname(manifestPath), dockerfile);
           if (fs.existsSync(dockerfile)) {
             if (fs.statSync(dockerfile).isDirectory()) {
               dockerfile = path.join(dockerfile, C.DEFAULT_DOCKERFILE_NAME);
             }
             context = context || path.dirname(dockerfile);
-            if (context && (!path.isAbsolute(context)) && manifest) {
-              context = `${path.join(path.dirname(manifest), context)}`;
+            if (context && (!path.isAbsolute(context)) && manifestPath) {
+              context = `${path.join(path.dirname(manifestPath), context)}`;
             }
           }
         }
@@ -67,7 +88,7 @@ const normalizeTask = async (taskObj, manifest) => {
   }
   // Common post-checks
   if (!task) {
-    error(`No "task" or "tag" params defined for ${JSON.stringify(taskObj)} so can't define task name`);
+    error(`No "task" or "tag"/"tags" params defined for ${JSON.stringify(taskObj)} so can't define task name`);
     task = C.DEAD_TASK_NAME;
     status = C.TASK_STATUS.FAILED;
   }
@@ -78,9 +99,11 @@ const normalizeTask = async (taskObj, manifest) => {
     context,
     skip,
     status,
-    tag,
+    tags,
     task,
     type,
+    command,
+    validate,
   };
 };
 
@@ -166,45 +189,45 @@ const sortTasks = (tasks) => {
  * @param extraArgsStr
  * @returns {string}
  */
-const makeTaskCommand = (taskObj, manifest, dryRun = false, extraArgsStr) => {
-  const { type, tag, args, dockerfile, context, skip, task } = taskObj;
+const makeTaskCommand = (taskObj, { runArgs }) => {
+  const { type, args, tags, dockerfile, context, skip, task } = taskObj;
   if (type === C.TASK_TYPES.CONTROL) {
     return null;
   }
   const dockerfileCmd = `-f ${dockerfile} `;
   const buildArgs = formatBuildArgs(args);
 
-  let commandParts;
-
-
-  const imageNameWithTag = tag || C.DEFAULT_IMAGE_NAME;
-
+  const imageNamesWithTag = tags.length > 0 ? tags : [C.DEFAULT_IMAGE_NAME];
   if (skip) {
-    commandParts = ['echo', `'Task "${task}" is skipped'`];
-  } else if (taskObj.type === C.TASK_TYPES.DOCKER_BUILD) {
-    commandParts = [
+    return ['echo', `'Task "${task}" is skipped'`].filter(x => !!x).join(' ');
+  }
+  if (taskObj.type === C.TASK_TYPES.DOCKER_BUILD) {
+    const tag = imageNamesWithTag[0];
+    const buildCommand = [
       'docker',
       'build',
-      ...((!extraArgsStr || (extraArgsStr.length === 0)) ? C.DOCKER_BUILD_MANDATORY_FLAGS : []),
       ...buildArgs,
       dockerfileCmd,
-      `-t ${imageNameWithTag}`,
-      extraArgsStr,
+      `-t ${tag}`,
+      (runArgs || []).join(' '),
       context,
-    ];
-  } else if (taskObj.type === C.TASK_TYPES.DOCKER_PUSH) {
-    commandParts = [
-      'docker',
-      'push',
-      imageNameWithTag,
-    ];
+    ].filter(x => !!x).join(' ');
+    const tagCommands = (imageNamesWithTag.length > 1)
+      ? imageNamesWithTag.slice(1).map(t => `docker tag ${tag} ${t}`)
+      : [];
+    return [buildCommand, ...tagCommands].join(' && ');
   }
-
-  const command = commandParts.filter(x => !!x).join(' ');
-  if (dryRun) {
-    return `echo "dry run of ${command.replace('"', '\\"')}"`;
+  if (taskObj.type === C.TASK_TYPES.DOCKER_PUSH) {
+    return imageNamesWithTag.map(t => `docker push ${t}`).join(' && ');
   }
-  return command;
+  if (taskObj.type === C.TASK_TYPES.COMMAND) {
+    return [
+      taskObj.command,
+      formatArgs(args),
+      (runArgs || []).join(' '),
+    ].filter(x => !!x).join(' ');
+  }
+  return null;
 };
 
 

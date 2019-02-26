@@ -1,0 +1,8 @@
+- task: task_cmd_two
+  dependsOn: [task_cmd_one]
+  command: 'touch /tmp/two && ls'
+  validate: 'stat /tmp/two && rm -rf /tmp/two'
+
+- task: task_cmd_one
+  command: 'touch /tmp/one && ls'
+  validate: 'stat /tmp/one && rm -rf /tmp/one'

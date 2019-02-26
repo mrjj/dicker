@@ -7,8 +7,8 @@ const { face } = require('./utils/faces');
 const { sortTasks, normalizeTask, makeTaskCommand } = require('./tasks');
 const { loadManifest, locateManifest } = require('./manifest');
 const { info, error, format, faceLogTask } = require('./utils/logger');
+const { formatArgs } = require('./utils/cli');
 const C = require('./constants');
-
 
 /**
  *
@@ -22,32 +22,69 @@ const onError = (e) => {
 process.on('uncaughtException', onError);
 process.on('unhandledRejection', onError);
 
+const shellCommandExecutor = async (taskObj, cmd, faceLog) => {
+  const run = shell.exec(cmd, { async: true, silent: true });
+  run.stdout.on('data', buff => info(getDataLines(buff)
+    .map(l => faceLog(C.FACES.INSPECTOR, `STDOUT: ${l}`))
+    .join('\n')));
+  run.stderr.on('data', buff => info(getDataLines(buff)
+    .map(l => faceLog(C.FACES.INSPECTOR, `STDERR: ${l}`))
+    .join('\n')));
+
+  run.on('error', e => error(faceLog(C.FACES.INSPECTOR, format('STDERR:', e))));
+
+  return new Promise((cloRes) => {
+    run.on(
+      'close',
+      (code) => {
+        Object.assign(taskObj, {
+          code,
+          status: (code === 0) ? C.TASK_STATUS.DONE : C.TASK_STATUS.FAILED,
+          message: (code === 0) ? 'Completed successful!' : `Failed with code: ${code}!`,
+        });
+
+        // Don't fail
+        info(faceLog(code === 0 ? C.FACES.HAPPY : C.FACES.DEAD));
+        cloRes(taskObj);
+      },
+    );
+  });
+};
+
 /**
  * Main logic
  */
-const startTasks = async (manifestPath, dryRun = false, extraArgsStr) => {
-  const tasks = await loadManifest(manifestPath);
-  const normalizedTasks = await promiseMap(tasks, async t => normalizeTask(t, manifestPath));
+const startTasks = async (normalizedTasks, params) => {
+  const { manifestPath, dryRun, runArgs } = params;
+  if (dryRun) {
+    info('Using DRY RUN mode, no commands will be actually executes');
+  }
   const sortedTasks = sortTasks(normalizedTasks).map((taskObj, idx) => {
-    let { command, status } = taskObj;
-    const { type, skip, task } = taskObj;
+    let { command, status, validate } = taskObj;
+    const { type, skip, task, args } = taskObj;
     if ((type === C.TASK_TYPES.DOCKER_BUILD) || (type === C.TASK_TYPES.DOCKER_PUSH)) {
-      command = makeTaskCommand(taskObj, manifestPath, dryRun, extraArgsStr);
+      command = makeTaskCommand(taskObj, params);
       if (!command) {
         error(`Can't make command for task: "${task}"`);
         status = C.TASK_STATUS.FAILED;
       }
+    } else if (type === C.TASK_TYPES.COMMAND) {
+      command = [command, formatArgs(args), runArgs.join(' ')].filter(x => !!x).join(' ');
     }
     status = (skip && (status !== C.TASK_STATUS.FAILED))
       ? C.TASK_STATUS.SKIPPED
       : (status || C.TASK_STATUS.PENDING);
+    if (dryRun) {
+      command = command ? `echo "Dry run of command: '${command.replace(/([^\\])"/ig, '$1\\"')}'"` : 'echo "Dry run with no command"';
+      validate = validate ? `echo "Dry run of validation: '${validate.replace(/([^\\])"/ig, '$1\\"')}'"` : 'echo "Dry run with no validation"';
+    }
     return defaults(
-      taskObj,
+      { ...taskObj, command, validate },
       {
         order: idx + 1,
         task,
         skip,
-        command,
+        validate,
         type,
         status,
       },
@@ -56,7 +93,7 @@ const startTasks = async (manifestPath, dryRun = false, extraArgsStr) => {
 
   const tasksDict = {};
   sortedTasks.forEach((taskObj) => {
-    const { command, status, description, task } = taskObj;
+    const { command, validate, status, description, task } = taskObj;
     tasksDict[task] = taskObj;
     let publicResolve;
     let publicReject;
@@ -101,7 +138,7 @@ const startTasks = async (manifestPath, dryRun = false, extraArgsStr) => {
         return taskObj;
       };
     } else {
-      innerFunction = () => {
+      innerFunction = async () => {
         if (taskObj.status === C.TASK_STATUS.FAILED) {
           info(faceLog(C.FACES.DIZZY, 'Task have been failed before start.'));
           Object.assign(
@@ -147,36 +184,19 @@ const startTasks = async (manifestPath, dryRun = false, extraArgsStr) => {
         );
         info(faceLog(C.FACES.SURPRISED, taskObj.message));
 
-        const dockerExecutor = async () => {
-          const dockerRun = shell.exec(command, {
-            async: true,
-            silent: true,
-          });
-          dockerRun.stdout.on('data', buff => info(getDataLines(buff)
-            .map(l => faceLog(C.FACES.INSPECTOR, `STDOUT: ${l}`))
-            .join('\n')));
-          dockerRun.stderr.on('data', buff => info(getDataLines(buff)
-            .map(l => faceLog(C.FACES.INSPECTOR, `STDERR: ${l}`))
-            .join('\n')));
+        const dockerExecutor = async () => shellCommandExecutor(taskObj, command, faceLog);
 
-          dockerRun.on('error', e => error(faceLog(C.FACES.INSPECTOR, format('STDERR:', e))));
-
-          return new Promise((cloRes) => {
-            dockerRun.on(
-              'close',
-              (code) => {
-                Object.assign(taskObj, {
-                  code,
-                  status: (code === 0) ? C.TASK_STATUS.DONE : C.TASK_STATUS.FAILED,
-                  message: (code === 0) ? 'Completed successful!' : `Failed with code: ${code}!`,
-                });
-
-                // Don't fail
-                info(faceLog(code === 0 ? C.FACES.HAPPY : C.FACES.DEAD));
-                cloRes(taskObj);
-              },
-            );
-          });
+        const commandExecutor = async () => {
+          if (!validate) {
+            return shellCommandExecutor(taskObj, command, faceLog);
+          }
+          const preValidationResult = await shellCommandExecutor(taskObj, validate, faceLog);
+          if (preValidationResult.status === C.TASK_STATUS.DONE) {
+            return preValidationResult;
+          }
+          const result = await shellCommandExecutor(taskObj, command, faceLog);
+          const validationResult = await shellCommandExecutor(taskObj, validate, faceLog);
+          return { ...result, ...validationResult };
         };
         const TYPE_EXECUTORS = {
           [C.TASK_TYPES.CONTROL]: async () => Object.assign(taskObj, {
@@ -186,19 +206,26 @@ const startTasks = async (manifestPath, dryRun = false, extraArgsStr) => {
           }),
           [C.TASK_TYPES.DOCKER_BUILD]: dockerExecutor,
           [C.TASK_TYPES.DOCKER_PUSH]: dockerExecutor,
+          [C.TASK_TYPES.COMMAND]: commandExecutor,
         };
         return TYPE_EXECUTORS[taskObj.type]();
       };
     }
-    const fn = async () => innerFunction().then((v) => {
-      info(C.SEP);
-      publicResolve(v);
-      return v;
-    }).catch((e) => {
-      info(C.SEP);
-      publicReject(e);
-      return e;
-    });
+
+    const fn = async () => innerFunction().then(
+      (v) => {
+        info(C.SEP);
+        publicResolve(v);
+        return v;
+      },
+    ).catch(
+      (e) => {
+        info(C.SEP);
+        publicReject(e);
+        return e;
+      },
+    );
+
     Object.assign(
       taskObj,
       {
@@ -219,26 +246,33 @@ const startTasks = async (manifestPath, dryRun = false, extraArgsStr) => {
   return promiseMap(sortedTasks, t => t.fn());
 };
 
-
-const run = async (manifestPath, extraArgs) => {
-  const manifestFilePath = locateManifest(
-    manifestPath || (
-      (process.argv.length > 2) ? process.argv[2] : C.DEFAULT_MANIFEST_PATH
-    ),
-  );
-  const argsAll = extraArgs ? extraArgs : ((process.argv.length > 3) ? Array.from(process.argv).slice(3) : []);
-  const dryRun = argsAll.indexOf('--dry-run') !== -1;
-  if (dryRun) {
-    info('Using DRY RUN mode, no commands will be actually executes');
-  }
-  const dockerArgs = argsAll.filter(a => (a !== '--dry-run'));
-  const res = await startTasks(manifestFilePath, dryRun, dockerArgs.join(' '));
-  const resultingTasks = forceArray(res);
+/**
+ * Main execution point
+ * @param params {{
+ *   manifestPath: string,
+ *   dryRun: boolean,
+ * }}
+ * @returns {Promise<Array<{
+ *  status: string,
+ *  message: string,
+ *  type: string,
+ * }>>}
+ */
+const run = async (params) => {
+  const manifestPath = locateManifest(params.manifestPath);
+  const tasks = await loadManifest(manifestPath);
+  const p = {
+    ...params,
+    manifestPath,
+  };
+  const normalizedTasks = await promiseMap(tasks, async t => normalizeTask(t, p));
+  const res = await startTasks(normalizedTasks, p);
+  const tasksResults = forceArray(res);
   info([
     '',
     `Build ended at: ${now()}`,
     '',
-    `From ${resultingTasks.length} processed task${resultingTasks.length === 1 ? '' : 's'}:`,
+    `From ${tasksResults.length} processed task${tasksResults.length === 1 ? '' : 's'}:`,
     ...(
       [
         C.TASK_STATUS.DONE,
@@ -249,8 +283,8 @@ const run = async (manifestPath, extraArgs) => {
       ].map(
         (ts) => {
           const fc = C.TASK_STATUS_TO_FACE[ts];
-          const padSize = Math.log10(resultingTasks.length) + 1;
-          const count = resultingTasks.filter(({ status }) => (status === ts)).length;
+          const padSize = Math.log10(tasksResults.length) + 1;
+          const count = tasksResults.filter(({ status }) => (status === ts)).length;
           if (!count) {
             return null;
           }
@@ -262,24 +296,14 @@ const run = async (manifestPath, extraArgs) => {
 
     '',
     'Tasks completion details:',
-    resultingTasks.map(t => `  ${faceLogTask(t, resultingTasks.length)}`).join('\n'),
+    tasksResults.map(t => `  ${faceLogTask(t, tasksResults.length)}`).join('\n'),
     '',
     'Have a nice day!',
   ].join('\n'));
-  const failedCount = resultingTasks.filter(
+  const failedCount = tasksResults.filter(
     ({ status }) => (status === C.TASK_STATUS.FAILED),
   ).length;
   shell.exit((failedCount === 0) ? 0 : 1);
 };
-
-
-if (require.main === module) {
-  run(...(process.argv.slice(2)))
-    .then()
-    .catch((e) => {
-      process.stderr.write(`Error: ${e && e.message}\n${e && e.stack}\n`);
-      process.exit(1);
-    });
-}
 
 module.exports = run;

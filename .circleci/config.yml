@@ -5,7 +5,7 @@ jobs:
     working_directory: ~/repo
 
     steps:
-      - run: circleci-install nodejs 10.15.1
+      - run: nvm install v10
       - checkout
 
       # Download and cache dependencies

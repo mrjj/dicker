@@ -8,11 +8,16 @@
     "jest",
     "flowtype"
   ],
+  "env": {
+    "jest": true,
+    "jest/globals": true
+  },
   "rules": {
     "indent": [
       "warn",
       2
     ],
+    "prefer-destructuring": 0,
     "no-underscore-dangle": 0,
     "flowtype/define-flow-type": 1,
     "flowtype/type-id-match": [1, "^([A-Z][a-z0-9]+)+$"],

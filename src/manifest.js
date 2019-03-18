@@ -14,8 +14,8 @@ const __ENTRY_POINT = shell.pwd().toString();
  * @param manifestPath
  * @returns {string}
  */
-const locateManifest = (manifestPath) => {
-  let mp = path.isAbsolute(manifestPath)
+const locateManifest = (manifestPath = '.') => {
+  let mp = path.isAbsolute(manifestPath || '.')
     ? manifestPath
     : path.resolve(path.relative(__ENTRY_POINT, manifestPath));
   if (fs.statSync(mp).isDirectory()) {
@@ -37,7 +37,7 @@ const locateManifest = (manifestPath) => {
 
 
 const loadManifest = async (manifestPath) => {
-  const mp = locateManifest(manifestPath);
+  const mp = locateManifest(manifestPath || '.');
   info(`Loading manifest file: "${mp}"`);
   if (!shell.test('-f', mp)) {
     error(`Manifest path do not exists: "${mp}", exiting with code 1`);

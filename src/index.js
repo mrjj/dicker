@@ -258,7 +258,7 @@ const startTasks = async (normalizedTasks, params) => {
  *  type: string,
  * }>>}
  */
-const run = async (params) => {
+const run = async (params = {}) => {
   const manifestPath = locateManifest(params.manifestPath);
   const tasks = await loadManifest(manifestPath);
   const p = {

@@ -14,19 +14,19 @@ const packageJsonPath = `${path.dirname(__filename)}/../package.json`;
 const version = JSON.parse(fs.readFileSync(packageJsonPath)).version || 'Version Unknown';
 
 const subIdx = process.argv.indexOf('--');
-const argv = subIdx === -1 ? process.argv: process.argv.slice(0, process.argv.indexOf('--'));
+const argv = subIdx === -1 ? process.argv : process.argv.slice(0, process.argv.indexOf('--'));
 const subArgv = subIdx === -1 ? [] : process.argv.slice(subIdx + 1);
 commander
   .version(version)
-  .usage('[dicker_manifest_path] [options]')
+  .usage('<dicker_manifest_path> [options]')
   .description('Run Dicker with given config')
-  .option('-d, --dry-run', 'Dry run')
+  .option('-d, --dry-run', 'Dry run', false)
   .action((dicker_manifest_path, options) => {
-    const manifestPath = dicker_manifest_path || C.DEFAULT_MANIFEST_PATH;
+    const manifestPath = typeof dicker_manifest_path === 'string' ? dicker_manifest_path : C.DEFAULT_MANIFEST_PATH;
     run({
       manifestPath,
       runArgs: subArgv || [],
-      dryRun: options.dryRun,
+      dryRun: (options || { dryRun: false }).dryRun,
     })
       .then()
       .catch((e) => {

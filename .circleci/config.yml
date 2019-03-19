@@ -10,19 +10,12 @@ jobs:
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "package.json" }}
-
       - run: yarn install
-
       - save_cache:
           paths:
             - node_modules
           key: v1-dependencies-{{ checksum "package.json" }}
-      - run: yarn run test:build:json
-      - run: yarn run test:build:yaml
-      - run: yarn run test:build:dry:docker
-      - run: yarn run test:build:dry:cmd
-      - run: yarn run test:build:cmd
+      - run: yarn run test
       - run: yarn run lint
       - run: yarn run test:jest
       - run: yarn run build
-

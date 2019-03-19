@@ -1,7 +1,7 @@
 {
   "name": "dicker",
   "description": "Dicker - Trivial docker build system",
-  "version": "2.9.1",
+  "version": "2.9.2",
   "author": {
     "name": "Ilya Kutukov",
     "url": "https://github.com/mrjj/",
@@ -61,11 +61,11 @@
     "start": "node bin/dicker",
     "build": "pkg bin/dicker --options max_old_space_size=4096 --out-path build",
     "test:build": "npm run test:build:json && npm run test:build:yaml && npm run test:build:dry:docker && npm run test:build:dry:cmd && npm run test:build:cmd",
-    "test:build:json": "bin/dicker ./example/build.json",
+    "test:build:json": "bin/dicker ./example/build.json --dry-run",
     "test:build:yaml": "bin/dicker ./example/build.yaml --dry-run",
     "test:build:dry:docker": "bin/dicker ./example/build_push.yaml --dry-run",
     "test:build:dry:cmd": "bin/dicker ./example/build_commands.yaml --dry-run",
-    "test:build:cmd": "bin/dicker ./example/build_commands.yaml --arg arg1=val1 --arg arg2=val2=subval2 --arg arg3 -- -lth",
+    "test:build:cmd": "bin/dicker ./example/build_commands.yaml --dry-run --arg arg1=val1 --arg arg2=val2=subval2 --arg arg3 -- -lth",
     "lint": "eslint ./src",
     "test:jest": "jest ./src --coverage --verbose false --runInBand",
     "test": "npm run test:build && npm run test:jest",

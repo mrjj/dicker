@@ -218,7 +218,7 @@ const makeTaskCommand = (taskObj) => {
       ...buildArgsTxt,
       dockerfileCmd,
       `-t ${tag}`,
-      argsTxt,
+      ...argsTxt,
       context,
     ].filter(x => !!x).join(' ');
     const tagCommands = (imageNamesWithTag.length > 1)

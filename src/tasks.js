@@ -24,13 +24,11 @@ const uniq = (arr) => {
 /**
  *
  * @param taskObj
- * @param params
  * @returns {Object}
  */
-const normalizeTask = async (taskObj, params) => {
+const normalizeTask = async (taskObj) => {
   let { task, tags, skip, type, dependsOn, status, context, dockerfile } = taskObj;
-  const { command, validate, tag } = taskObj;
-  const { manifestPath } = params;
+  const { command, validate, tag, manifestPath } = taskObj;
 
   // Defaults
   tags = uniq([
@@ -174,30 +172,40 @@ const sortTasks = (tasks) => {
       });
     }
   });
-  return toposort(tasksEdges).map((image) => {
+  const sorted = toposort(tasksEdges).map((image) => {
     if (!tasksDict[image]) {
       error(`Can't find dependency: "${image}"`);
     }
     return tasksDict[image];
   }).filter(x => x);
+  // Mark required dependencies as not skipped
+  sorted.forEach((task) => {
+    if ((!task.skip) && (task.status !== C.TASK_STATUS.SKIPPED)) {
+      (task.dependsOn || []).forEach((depName) => {
+        if (tasksDict[depName].skip) {
+          tasksDict[depName].skip = false;
+          tasksDict[depName].status = C.TASK_STATUS.PENDING;
+        }
+      });
+    }
+  });
+  return sorted;
 };
 
 
 /**
  *
  * @param taskObj
- * @param manifest
- * @param extraArgsStr
  * @returns {string}
  */
-const makeTaskCommand = (taskObj, { runArgs }) => {
-  const { type, args, tags, dockerfile, context, skip, task } = taskObj;
+const makeTaskCommand = (taskObj) => {
+  const { type, buildArgs, args, tags, dockerfile, context, skip, task } = taskObj;
   if (type === C.TASK_TYPES.CONTROL) {
     return null;
   }
   const dockerfileCmd = `-f ${dockerfile} `;
-  const buildArgs = formatBuildArgs(args);
-
+  const buildArgsTxt = formatBuildArgs(buildArgs);
+  const argsTxt = formatArgs(args);
   const imageNamesWithTag = tags.length > 0 ? tags : [C.DEFAULT_IMAGE_NAME];
   if (skip) {
     return ['echo', `'Task "${task}" is skipped'`].filter(x => !!x).join(' ');
@@ -207,10 +215,10 @@ const makeTaskCommand = (taskObj, { runArgs }) => {
     const buildCommand = [
       'docker',
       'build',
-      ...buildArgs,
+      ...buildArgsTxt,
       dockerfileCmd,
       `-t ${tag}`,
-      (runArgs || []).join(' '),
+      argsTxt,
       context,
     ].filter(x => !!x).join(' ');
     const tagCommands = (imageNamesWithTag.length > 1)
@@ -224,8 +232,7 @@ const makeTaskCommand = (taskObj, { runArgs }) => {
   if (taskObj.type === C.TASK_TYPES.COMMAND) {
     return [
       taskObj.command,
-      formatArgs(args),
-      (runArgs || []).join(' '),
+      argsTxt,
     ].filter(x => !!x).join(' ');
   }
   return null;

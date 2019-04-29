@@ -1,7 +1,7 @@
-- tag: 'basic-hello-world:0.0.1'
+- tag: basic-hello-world:0.0.1
   dockerfile: ./trivial
 
-- task: vanilla-hello-world
+- task: 'vanilla-hello-world'
   tags: ['hello-world', 'hello-world:latest']
   dockerfile: ./trivial
 
@@ -13,7 +13,7 @@
 
 - dockerfile: ./trivial
   tag: 'misctag-hello-world:ineedbasic'
-  dependsOn: [vanilla-hello-world, basic-hello-world]
+  dependsOn: [vanilla-hello-world, basic-hello-world:0.0.1]
 
 - dockerfile: ./trivial
   tag: misctag-hello-world
@@ -23,13 +23,13 @@
   task: 'misctag-hello-world:latest'
   dependsOn: vanilla-hello-world
 
-- dependsOn: [basic-hello-world, misctag-hello-world, vanilla-hello-world]
-  tag: node:10-centos7
+- tag: node:10-centos7
+  dependsOn: [basic-hello-world:0.0.1, misctag-hello-world, vanilla-hello-world]
   dockerfile: node-test/Dockerfile
   context: ./myartifacts/
   description: 'This message shows that your installation appears to be working correctly.'
   license: MIT
-  args:
+  buildArgs:
     BUILD_FROM: 'node:10.13.0-alpine'
 
 - task: second

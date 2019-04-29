@@ -5,7 +5,7 @@ const { promiseMap, forceArray } = require('./utils/lists');
 const { now } = require('./utils/time');
 const { face } = require('./utils/faces');
 const { sortTasks, normalizeTask, makeTaskCommand } = require('./tasks');
-const { loadManifest, locateManifest } = require('./manifest');
+const { loadManifests } = require('./manifest');
 const { info, error, format, faceLogTask } = require('./utils/logger');
 const { formatArgs } = require('./utils/cli');
 const C = require('./constants');
@@ -55,28 +55,32 @@ const shellCommandExecutor = async (taskObj, cmd, faceLog) => {
  * Main logic
  */
 const startTasks = async (normalizedTasks, params) => {
-  const { manifestPath, dryRun, runArgs } = params;
+  const { dryRun } = params;
   if (dryRun) {
     info('Using DRY RUN mode, no commands will be actually executes');
   }
-  const sortedTasks = sortTasks(normalizedTasks).map((taskObj, idx) => {
+  const sortedTasks = sortTasks(forceArray(normalizedTasks)).map((taskObj, idx) => {
     let { command, status, validate } = taskObj;
-    const { type, skip, task, args } = taskObj;
+    const { type, skip, task, args, manifestPath } = taskObj;
     if ((type === C.TASK_TYPES.DOCKER_BUILD) || (type === C.TASK_TYPES.DOCKER_PUSH)) {
-      command = makeTaskCommand(taskObj, params);
+      command = makeTaskCommand(taskObj);
       if (!command) {
         error(`Can't make command for task: "${task}"`);
         status = C.TASK_STATUS.FAILED;
       }
     } else if (type === C.TASK_TYPES.COMMAND) {
-      command = [command, formatArgs(args), runArgs.join(' ')].filter(x => !!x).join(' ');
+      command = [command, formatArgs(args)].filter(x => !!x).join(' ');
     }
     status = (skip && (status !== C.TASK_STATUS.FAILED))
       ? C.TASK_STATUS.SKIPPED
       : (status || C.TASK_STATUS.PENDING);
     if (dryRun) {
-      command = command ? `echo "Dry run of command: '${command.replace(/([^\\])"/ig, '$1\\"')}'"` : 'echo "Dry run with no command"';
-      validate = validate ? `echo "Dry run of validation: '${validate.replace(/([^\\])"/ig, '$1\\"')}'"` : 'echo "Dry run with no validation"';
+      command = command
+        ? `echo "Dry run of command: '${command.replace(/([^\\])"/ig, '$1\\"')}'"`
+        : 'echo "Dry run with no command"';
+      validate = validate
+        ? `echo "Dry run of validation: '${validate.replace(/([^\\])"/ig, '$1\\"')}'"`
+        : 'echo "Dry run with no validation"';
     }
     return defaults(
       { ...taskObj, command, validate },
@@ -87,13 +91,14 @@ const startTasks = async (normalizedTasks, params) => {
         validate,
         type,
         status,
+        manifestPath,
       },
     );
   });
 
   const tasksDict = {};
   sortedTasks.forEach((taskObj) => {
-    const { command, validate, status, description, task } = taskObj;
+    const { command, validate, status, description, task, manifestPath } = taskObj;
     tasksDict[task] = taskObj;
     let publicResolve;
     let publicReject;
@@ -230,11 +235,11 @@ const startTasks = async (normalizedTasks, params) => {
       taskObj,
       {
         fn,
-        promise,
         message: description,
         code: null,
         resolve: () => Promise.resolve(taskObj),
         command,
+        promise,
       },
     );
   });
@@ -249,7 +254,8 @@ const startTasks = async (normalizedTasks, params) => {
 /**
  * Main execution point
  * @param params {{
- *   manifestPath: string,
+ *   manifestPaths: Array<string>,
+ *   tasksToRun: Array<string>,
  *   dryRun: boolean,
  * }}
  * @returns {Promise<Array<{
@@ -259,15 +265,26 @@ const startTasks = async (normalizedTasks, params) => {
  * }>>}
  */
 const run = async (params = {}) => {
-  const manifestPath = locateManifest(params.manifestPath);
-  const tasks = await loadManifest(manifestPath);
-  const p = {
-    ...params,
-    manifestPath,
-  };
-  const normalizedTasks = await promiseMap(tasks, async t => normalizeTask(t, p));
-  const res = await startTasks(normalizedTasks, p);
-  const tasksResults = forceArray(res);
+  const tasksToRun = params.tasksToRun || [];
+  const tasksResults = await startTasks(
+    await promiseMap(
+      await loadManifests(params.manifestPaths, { args: params.args, buildArgs: params.buildArgs }),
+      async (task) => {
+        const normalized = await normalizeTask(task);
+        if (tasksToRun.length === 0) {
+          return normalized;
+        }
+        return {
+          ...normalized,
+          status: (
+            (tasksToRun.indexOf(normalized.task) === -1) ? C.TASK_STATUS.SKIPPED : normalized.status
+          ),
+          skip: (tasksToRun.indexOf(normalized.task) === -1),
+        };
+      },
+    ),
+    params,
+  );
   info([
     '',
     `Build ended at: ${now()}`,

@@ -2,7 +2,7 @@
 
 Trivial docker build tool
 
-Version: `2.9.0`
+Version: `2.9.3`
 
 [![CircleCI](https://circleci.com/gh/mrjj/dicker/tree/master.svg?style=svg)](https://circleci.com/gh/mrjj/dicker/tree/master)
 

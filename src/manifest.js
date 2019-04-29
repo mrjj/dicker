@@ -1,8 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const shell = require('shelljs');
+
 const yaml = require('js-yaml');
-const { forceArray } = require('./utils/lists');
+
+const { forceArray, promiseMap } = require('./utils/lists');
+const { defaults } = require('./utils/objects');
 const { info, error } = require('./utils/logger');
 const C = require('./constants');
 
@@ -36,36 +39,42 @@ const locateManifest = (manifestPath = '.') => {
 };
 
 
-const loadManifest = async (manifestPath) => {
-  const mp = locateManifest(manifestPath || '.');
-  info(`Loading manifest file: "${mp}"`);
-  if (!shell.test('-f', mp)) {
-    error(`Manifest path do not exists: "${mp}", exiting with code 1`);
+const loadManifest = async (inputManifestPath) => {
+  const manifestPath = locateManifest(inputManifestPath || '.');
+  if (!shell.test('-f', manifestPath)) {
+    error(`Manifest path do not exists: "${manifestPath}", exiting with code 1`);
     shell.exit(1);
-  } else {
-    let tasks = [];
-    const ext = path.extname(manifestPath).toLowerCase();
-    if (C.POSSIBLE_EXTENSIONS.indexOf(ext) === -1) {
-      throw new Error(`Unknown file format: "${ext}" of file "${mp}"`);
-    }
-    const data = fs.readFileSync(mp, C.DEFAULT_ENCODING);
-    if (['.json'].indexOf(ext) !== -1) {
-      tasks = forceArray(JSON.parse(data));
-    } else if (['.yaml', '.yml'].indexOf(ext) !== -1) {
-      tasks = forceArray(yaml.safeLoad(data));
-    }
-    if (tasks.length === 0) {
-      error(`No tasks defined in manifest: "${mp}", exiting with code 0`);
-      shell.exit(0);
-      return 0;
-    }
-    info(`Tasks loaded:        ${tasks.length} (also one service task: "${C.ROOT_TASK.task}" will be used)`);
-    return tasks;
   }
-  return [];
+  info(`Loading manifest file: "${manifestPath}"`);
+  let tasks = [];
+  const ext = path.extname(manifestPath).toLowerCase();
+  if (C.POSSIBLE_EXTENSIONS.indexOf(ext) === -1) {
+    throw new Error(`Unknown file format: "${ext}" of file "${manifestPath}"`);
+  }
+  const data = fs.readFileSync(manifestPath, C.DEFAULT_ENCODING).toString();
+  if (['.json'].indexOf(ext) !== -1) {
+    tasks = forceArray(JSON.parse(data));
+  } else if (['.yaml', '.yml'].indexOf(ext) !== -1) {
+    tasks = forceArray(yaml.safeLoad(data));
+  }
+  if (tasks.length === 0) {
+    error(`No tasks defined in manifest: "${manifestPath}", exiting with code 0`);
+    return [];
+  }
+  info(`Tasks loaded:        ${tasks.length} (also one service task: "${C.ROOT_TASK.task}" will be used)`);
+  return tasks.map(task => ({ ...task, manifestPath }));
 };
 
+const loadManifests = async (manifestPaths, { args, buildArgs }) => (
+  await promiseMap(manifestPaths, loadManifest)
+).reduce(
+  (acc, { tasks, manifestPath }) => acc.concat(
+    tasks.map(task => defaults(task, { manifestPath, args, buildArgs })),
+    [],
+  ),
+);
+
+
 module.exports = {
-  loadManifest,
-  locateManifest,
+  loadManifests,
 };

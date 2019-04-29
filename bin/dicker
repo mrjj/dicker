@@ -2,36 +2,55 @@
 /**
  * @fileOverview: main Dicker file
  */
-
-const commander = require('commander');
 const fs = require('fs');
 const path = require('path');
-const C = require('../src/constants');
+const yaml = require('js-yaml');
 
+const minimist = require('minimist');
+
+const C = require('../src/constants');
 const run = require('../src/index.js');
 
 const packageJsonPath = `${path.dirname(__filename)}/../package.json`;
 const version = JSON.parse(fs.readFileSync(packageJsonPath)).version || 'Version Unknown';
 
-const subIdx = process.argv.indexOf('--');
-const argv = subIdx === -1 ? process.argv : process.argv.slice(0, process.argv.indexOf('--'));
-const subArgv = subIdx === -1 ? [] : process.argv.slice(subIdx + 1);
-commander
-  .version(version)
-  .usage('<dicker_manifest_path> [options]')
-  .description('Run Dicker with given config')
-  .option('-d, --dry-run', 'Dry run', false)
-  .action((dicker_manifest_path, options) => {
-    const manifestPath = typeof dicker_manifest_path === 'string' ? dicker_manifest_path : C.DEFAULT_MANIFEST_PATH;
-    run({
-      manifestPath,
-      runArgs: subArgv || [],
-      dryRun: (options || { dryRun: false }).dryRun,
-    })
-      .then()
-      .catch((e) => {
-        process.stderr.write(`Error: ${e && e.message}\n${e && e.stack}\n`);
-        process.exit(1);
-      });
-  })
-  .parse(argv);
+const argv = { ...(minimist(process.argv)) };
+const subArgv = argv['--'] || [];
+
+const manifestPaths = [];
+const tasksToRun = [];
+
+argv._.slice(2).forEach((x) => {
+  const possibleExt = `.${(x.split('.').slice(-1)[0] || '').toLowerCase()}`;
+  if (C.POSSIBLE_EXTENSIONS.indexOf(possibleExt) !== -1) {
+    manifestPaths.push(x);
+  } else {
+    tasksToRun.push(x);
+  }
+});
+if (argv.h || argv.help) {
+  process.stdout.write([
+    `Dicker version: ${version}`,
+    '$ dicker [options] <manifest_path> <only_tasks...> [options]',
+    'options:',
+    '   -b --build-arg key=val     Build arg',
+    '   -d, --dry-run           Dry run',
+    '   -h, --help              This note',
+    '',
+  ].join('\n'));
+  process.exit(0);
+}
+const runOptions = {
+  manifestPaths: (manifestPaths.length === 0) ? [C.DEFAULT_MANIFEST_PATH] : manifestPaths,
+  tasksToRun,
+  args: subArgv || [],
+  buildArgs: (argv['build-arg'] || []).concat(argv.b || []),
+  dryRun: argv.d || argv['dry-run'] || false,
+};
+process.stdout.write(`Run options:\n${yaml.safeDump(runOptions)}\n`);
+run(runOptions)
+  .then()
+  .catch((e) => {
+    process.stderr.write(`Error: ${e && e.message}\n${e && e.stack}\n`);
+    process.exit(1);
+  });

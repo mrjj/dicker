@@ -1,7 +1,7 @@
 {
   "name": "dicker",
   "description": "Dicker - Trivial docker build system",
-  "version": "2.9.4",
+  "version": "2.9.5",
   "author": {
     "name": "Ilya Kutukov",
     "url": "https://github.com/mrjj/",
@@ -61,7 +61,7 @@
   },
   "scripts": {
     "start": "node bin/dicker",
-    "build": "pkg bin/dicker --options max_old_space_size=4096 --out-path build",
+    "build:bin": "pkg bin/dicker --options max_old_space_size=4096 --out-path build",
     "test:build": "npm run test:build:json && npm run test:build:yaml && npm run test:build:dry:docker && npm run test:build:dry:cmd && npm run test:build:cmd",
     "test:build:json": "bin/dicker ./example/build.json --dry-run",
     "test:build:yaml": "bin/dicker ./example/build.yaml --dry-run",
@@ -72,8 +72,8 @@
     "lint": "eslint ./src",
     "test:jest": "jest ./src --coverage --verbose false --runInBand",
     "test": "npm run test:build && npm run test:jest",
-    "ci": "npm run test && npm run lint && npm run build",
-    "prepublish": "npm run build",
+    "ci": "npm run test && npm run lint",
+    "prepublish": "npm run ci",
     "prepublishOnly": "npm run ci"
   },
   "files": [

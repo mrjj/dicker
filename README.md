@@ -2,7 +2,7 @@
 
 Trivial docker build tool
 
-Version: `2.9.4`
+Version: `2.9.5`
 
 [![CircleCI](https://circleci.com/gh/mrjj/dicker/tree/master.svg?style=svg)](https://circleci.com/gh/mrjj/dicker/tree/master)
 
@@ -16,56 +16,63 @@ is trivial:
 $ npm install dicker -g
 ```
 
+Or you can build binary distributions for Mac OS / Linux / Windows (not quite sure about...)
+ 
+For this Node.js <= 10.x.x is required because 11.x and 12.x are not supported by [pkg](https://github.com/zeit/pkg/) [yet](https://github.com/zeit/pkg/issues/568)
+Then run:
+
+```bash
+$ npm run build:bin
+```
+
+And then check build output in `./build` folder for three binary files as the expected result.
+
+
 ## Build configuration
 
 Example build configuration file is quite trivial too:
 
-```json
-[
-  {
-    "tagAndDigest": "basic-hello-world:0.0.1"
-  },
-  {
-    "tagAndDigest": "more-basic-hello-world:latest"
-  },
-  {
-    "task": "vanilla-hello-world",
-    "tags": ["hello-world", "hello-world:latest"]
-  },
-  {
-    "task": "advanced-hello-world",
-    "skip": true
-  },
-  {
-    "task": "advanced-node-test",
-    "dependsOn": ["basic-hello-world:0.0.1", "more-basic-hello-world", "vanilla-hello-world"],
-    "dockerfile": "node-test/Dockerfile",
-    "tagAndDigest": "advanced-node-test:latest",
-    "context": "./myartifacts/",
-    "description": "This message shows that your installation appears to be working correctly.",
-    "license": "MIT",
-    "args": {
-      "BUILD_FROM": "scratch"
-    }
-  }
-]
+`build_manifest_name.yaml`
+
+```yaml
+- tagAndDigest: basic-hello-world:0.0.1
+- tagAndDigest: more-basic-hello-world:latest
+- task: vanilla-hello-world
+  tags:
+  - hello-world
+  - hello-world:latest
+- task: advanced-hello-world
+  skip: true
+- task: advanced-node-test
+  dependsOn:
+  - basic-hello-world:0.0.1
+  - more-basic-hello-world
+  - vanilla-hello-world
+  dockerfile: node-test/Dockerfile
+  tagAndDigest: advanced-node-test:latest
+  context: "./myartifacts/"
+  description: "This message shows that your installation appears to be working correctly."
+  license: MIT
+  args:
+    BUILD_FROM: scratch
+
 ```
 
 Define as many containers as you want placing config objects to root array.
 
-Having config like this (or in `.yaml`/`.yml` format) somewhere you are free to run following command to start building process:
+Having config like this with supported content type and extension (`.json`, `.yaml`, `.yml`) now you can start build process:
 
 ```
-$ dicker /var/manifestfolder/mybuild.json
+$ dicker /var/manifestfolder/mybuild.yaml
 ```
 
-`Dicker` will go to the folder our example `mybuild.json` file (build manifest) is located and then will apply simple paths resolution principles:
+`Dicker` will go to the folder our example `mybuild.yaml` file (build manifest) is located and then will apply simple paths resolution principles:
 
 - Any absolute path will be left as is and for `hello-world` in example it will be just
 
   - `/home/dcheney/dockerfiles/Dockerfile` -> `/home/dcheney/dockerfiles/Dockerfile`
 
-- All relative paths will be resolved starting from folder `mybuild.json` is located, for current example it will be: `/var/manifestfolder/` and it does not matter from where you have started process so all relative paths that are defined in `mybuild.json` will be start from its folder.
+- All relative paths will be resolved starting from folder `mybuild.yaml` is located, for current example it will be: `/var/manifestfolder/` and it does not matter from where you have started process so all relative paths that are defined in `mybuild.yaml` will be start from its folder.
   
   - `./node-test/Dockerfile` -> `/var/manifestfolder/node-test/Dockerfile`
   - `./myartifacts/` -> `/var/manifestfolder/node-test/`
@@ -96,7 +103,7 @@ $ npm run build
 
 and then check `./build/` folder: there will be 3 files having 20+ - 30+ megabytes size and targeted different OS. For *NIX systems they should be already marked as executables. Any of them supposed to be portable without any dependencies.
 
-Also you could use dicker programmatically doing like: `import runDicker from 'dicker'; run('./build.json')`, importable object start parameters are planned to be extended in future.
+Also you could use dicker programmatically doing like: `import runDicker from 'dicker'; run('./build.yaml')`, importable object start parameters are planned to be extended in future.
 
 
 ### Naming

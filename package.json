@@ -72,7 +72,9 @@
     "lint": "eslint ./src",
     "test:jest": "jest ./src --coverage --verbose false --runInBand",
     "test": "npm run test:build && npm run test:jest",
-    "ci": "npm run test && npm run lint && npm run build"
+    "ci": "npm run test && npm run lint && npm run build",
+    "prepublish": "npm run build",
+    "prepublishOnly": "npm run ci"
   },
   "files": [
     "src/**/*",

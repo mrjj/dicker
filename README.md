@@ -66,6 +66,20 @@ Having config like this with supported content type and extension (`.json`, `.ya
 $ dicker /var/manifestfolder/mybuild.yaml
 ```
 
+You can explicitly define what task to execute via CLI like:
+
+```
+$ dicker /var/manifestfolder/mybuild.yaml hello-world-task goodbye-world-task
+```
+
+You can define as many manifests and tasks as you wish in any order like:
+
+```
+$ dicker task1 /var/manifestfolder/mybuild.yaml task2 advanced-hello-world /var/manifestfolder/mybuild-mixin.yml tail-task
+```
+
+in this case Dicker will try to preserve definition order and consider next ones manifest files as overriding previous ones by task name key in the case of different definitions for the same task name (whole task definition will be replaced without merge). You may think about this like its single manifest that was concatenated from different files.
+
 `Dicker` will go to the folder our example `mybuild.yaml` file (build manifest) is located and then will apply simple paths resolution principles:
 
 - Any absolute path will be left as is and for `hello-world` in example it will be just
@@ -83,7 +97,7 @@ $ dicker /var/manifestfolder/mybuild.yaml
 
 The resulting container image will be marked as `dicker/node-test:0.1.5`.
 
-Build order will be preserved as you have defined it in build manifest but could be changed automatically according to `"dependsOn": [ "other-task-name-1", "other-task-name-2" ]` or `"dependsOn": "other-task-name"` build task directive, that will be resolved with minimal build order impact automatically.
+Build order will be preserved as you have defined it in build manifest but could be changed automatically according to `"dependsOn": [ "other-task-name-1", "other-task-name-2" ]` or `"dependsOn": "other-task-name"` build task directive, that will be resolved with minimal build order impact automatically. Disabled tasks (`"skip": true`) that are required for any enabled tasks or tasks defined explicitly via CLI will be auto-enabled and executed.
 
 `"args": { "KEY": "value" }` directive will be used as Docker [`--build-arg KEY=value`](https://docs.docker.com/engine/reference/commandline/build/#set-build-time-variables---build-arg) parameters that should have respecting `ARG KEY=` part in your `Dockerfile` (pay attention to doc section describing their scope and default params, sometimes its not trivial)
 
@@ -122,6 +136,7 @@ what is complete and quite precise description of what i'm usually doing includi
 
 According to perfectly dumb luck `Dicker` name happened to be free even on [`npmjs.org`][40] 
 
+Dicker was inspired by [Habitus](https://www.habitus.io/) ([src](https://github.com/cloud66-oss/habitus)) build tool. Also i have Habitus build files support in plans.
 
 ### Bullshit section about triviality and other open-source container tools worth mention
 
